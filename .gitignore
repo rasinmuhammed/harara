@@ -23,3 +23,6 @@ scratch/
 .cdsapirc
 *.key
 *.pem
+
+# Local planning document
+VISION.md
