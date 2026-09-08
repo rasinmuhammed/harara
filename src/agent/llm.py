@@ -395,7 +395,12 @@ def register(name: str, cls: type[LLM]) -> None:
     _REGISTRY[name] = cls
 
 
+_OPTIONAL = {"anthropic": "src.agent.anthropic_llm"}
+
+
 def get_llm(name: str = "mock", **kwargs) -> LLM:
+    if name not in _REGISTRY and name in _OPTIONAL:
+        __import__(_OPTIONAL[name])          # registers on import
     if name not in _REGISTRY:
         raise ValueError(f"unknown LLM {name!r}; have {sorted(_REGISTRY)}")
     return _REGISTRY[name](**kwargs)
