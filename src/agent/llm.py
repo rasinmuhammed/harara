@@ -154,15 +154,17 @@ class MockLLM(LLM):
 
     # ---- (c) grounded briefing ----------------------------------------
     def write_briefing(self, sched, rules, *, location_name):
-        allowed = ", ".join(sched.allowed_hours) or "none"
         delta = sched.baseline_peak_strain - sched.plan_peak_strain
+        worked = [f"{p.local_time:%H:%M} ({p.work_fraction})"
+                  for p in sched.plan if p.work_fraction >= 0.05]
+        schedule = ", ".join(worked) or "no hours"
         lines = [
             f"Shift plan - {location_name}, "
             f"{sched.plan[0].local_time.date().isoformat()}",
             "",
             f"Deliver {sched.work_hours_delivered} of "
             f"{sched.work_hours_required} required work-hours.",
-            f"Work these hours: {allowed}.",
+            f"Work fraction by hour: {schedule}.",
         ]
         if sched.stop_work_hours:
             lines.append(
