@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Harara — Project Summary</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --ground: #F6F7F9;
+    --surface: #FFFFFF;
+    --ink: #1A2028;
+    --muted: #66707A;
+    --rule: #E1E4E8;
+    --hazard: #BC3D28;      /* WBGT-danger amber-red: rejected marks + hazard figures only */
+    --holds: #0C6E6D;       /* measured teal: supported marks + contribution figures */
+    --wash: #F3EBE5;
+    --focus: #BC3D28;
+  }
+  :root:not([data-theme="light"]) {
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #10151A;
+      --surface: #171E25;
+      --ink: #E7EBEF;
+      --muted: #8C97A2;
+      --rule: #29323C;
+      --hazard: #E4664B;
+      --holds: #35A6A3;
+      --wash: #201A16;
+      --focus: #E4664B;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #10151A;
+    --surface: #171E25;
+    --ink: #E7EBEF;
+    --muted: #8C97A2;
+    --rule: #29323C;
+    --hazard: #E4664B;
+    --holds: #35A6A3;
+    --wash: #201A16;
+    --focus: #E4664B;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+    line-height: 1.62;
+    margin: 0;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page {
+    max-width: 46rem;
+    margin: 0 auto;
+    padding: clamp(2rem, 5vw, 4.5rem) clamp(1.15rem, 4vw, 2rem) 5rem;
+  }
+
+  /* --- type scale --- */
+  h1 {
+    font-family: "Newsreader", Georgia, serif;
+    font-weight: 500;
+    font-size: clamp(2.3rem, 6vw, 3.4rem);
+    line-height: 1.08;
+    letter-spacing: -0.012em;
+    text-wrap: balance;
+    margin: 0 0 0.6rem;
+  }
+  h2 {
+    font-family: "Newsreader", Georgia, serif;
+    font-weight: 500;
+    font-size: clamp(1.5rem, 3.4vw, 1.95rem);
+    line-height: 1.15;
+    letter-spacing: -0.008em;
+    text-wrap: balance;
+    margin: 0 0 0.9rem;
+  }
+  h3 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    letter-spacing: 0.005em;
+    margin: 1.8rem 0 0.4rem;
+  }
+  p { margin: 0 0 1rem; }
+  a { color: var(--holds); text-underline-offset: 2px; }
+  a:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--focus); outline-offset: 3px; border-radius: 2px;
+  }
+  strong { font-weight: 600; }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 0.7rem;
+  }
+  .lede {
+    font-family: "Newsreader", Georgia, serif;
+    font-size: clamp(1.15rem, 2.6vw, 1.4rem);
+    line-height: 1.45;
+    color: var(--ink);
+    margin: 0 0 2rem;
+    text-wrap: pretty;
+  }
+  .byline {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.74rem;
+    color: var(--muted);
+    letter-spacing: 0.03em;
+    margin: 0 0 2.6rem;
+    padding-bottom: 1.6rem;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  section { margin: 3.4rem 0 0; }
+  section > .eyebrow { display: flex; align-items: baseline; gap: 0.8rem; }
+  section > .eyebrow::before {
+    content: attr(data-idx);
+    color: var(--ink);
+    font-weight: 500;
+  }
+
+  /* --- readout chips --- */
+  .readouts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+    gap: 0.7rem;
+    margin: 0 0 2.4rem;
+  }
+  .readout {
+    border: 1px solid var(--rule);
+    border-left: 2px solid var(--holds);
+    background: var(--surface);
+    padding: 0.75rem 0.9rem 0.8rem;
+  }
+  .readout.haz { border-left-color: var(--hazard); }
+  .readout .n {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 1.5rem;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    display: block;
+    line-height: 1.1;
+  }
+  .readout .k {
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-top: 0.3rem;
+    display: block;
+  }
+
+  /* --- ledger table --- */
+  .ledger {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+    margin: 0.6rem 0 0.4rem;
+  }
+  .ledger th, .ledger td {
+    text-align: left;
+    padding: 0.62rem 0.7rem;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+  .ledger th {
+    font-family: "IBM Plex Mono", monospace;
+    font-weight: 500;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .ledger td:first-child { white-space: nowrap; }
+  .verdict {
+    font-family: "IBM Plex Mono", monospace;
+    font-weight: 500;
+    font-size: 0.82rem;
+    white-space: nowrap;
+  }
+  .verdict.no { color: var(--hazard); }
+  .verdict.yes { color: var(--holds); }
+  .tablewrap { overflow-x: auto; }
+
+  /* --- figure --- */
+  figure {
+    margin: 1.6rem 0 1.2rem;
+    padding: 1.2rem 1.1rem 0.9rem;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+  }
+  figure svg { display: block; width: 100%; height: auto; }
+  figcaption {
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-top: 0.7rem;
+    line-height: 1.5;
+  }
+  .chart-txt { font-family: "IBM Plex Mono", monospace; font-size: 11px; fill: var(--muted); }
+  .chart-val { font-family: "IBM Plex Mono", monospace; font-size: 12px; fill: var(--ink); font-weight: 500; }
+  .chart-lbl { font-family: "IBM Plex Sans", sans-serif; font-size: 12px; fill: var(--ink); }
+
+  .callout {
+    background: var(--wash);
+    border: 1px solid var(--rule);
+    padding: 1rem 1.15rem;
+    margin: 1.4rem 0;
+    font-size: 0.9rem;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout .tag {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--hazard);
+    display: block;
+    margin-bottom: 0.35rem;
+  }
+
+  ul.tight { margin: 0 0 1rem; padding-left: 1.15rem; }
+  ul.tight li { margin: 0.3rem 0; }
+
+  .loop {
+    display: grid;
+    gap: 0.5rem;
+    margin: 1.4rem 0;
+  }
+  .loop .step {
+    border: 1px solid var(--rule);
+    background: var(--surface);
+    padding: 0.7rem 0.9rem;
+    font-size: 0.88rem;
+    position: relative;
+  }
+  .loop .step b {
+    font-family: "IBM Plex Mono", monospace;
+    font-weight: 500;
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--holds);
+    display: block;
+    margin-bottom: 0.15rem;
+  }
+  .loop .step.back b { color: var(--muted); }
+  .loop .arrow { color: var(--muted); font-family: "IBM Plex Mono", monospace; font-size: 0.8rem; padding-left: 0.9rem; }
+
+  .method {
+    font-size: 0.84rem;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+  .method code {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.82em;
+    color: var(--ink);
+  }
+  footer {
+    margin-top: 4rem;
+    padding-top: 1.6rem;
+    border-top: 1px solid var(--rule);
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    a { transition: color 0.15s ease; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <p class="eyebrow">Project summary &middot; Doha</p>
+    <h1>Forecast-driven heat-safety analysis for outdoor labour</h1>
+    <p class="lede">An evaluation of whether public forecast data supports better heat-safety decision-making for Gulf outdoor workers, and two proof-of-concept contributions. Full methodology and results are in the technical report; this page is a summary.</p>
+    <p class="byline">Companion code and docs in this repository.</p>
+  </header>
+
+  <div class="readouts">
+    <div class="readout">
+      <span class="n">0.8&nbsp;&deg;C</span>
+      <span class="k">Mean absolute error of blended NWP for Doha WBGT at 24&ndash;72&nbsp;h. A learned bias correction does not improve it.</span>
+    </div>
+    <div class="readout haz">
+      <span class="n">~60%</span>
+      <span class="k">Of the physiologically unsafe daylight hours for heavy work by unacclimatised workers fall outside the calendar ban.</span>
+    </div>
+    <div class="readout">
+      <span class="n">&minus;14 / &minus;20%</span>
+      <span class="k">Reduction in mean and tail peak thermal load from risk-optimal scheduling, at equal output, in simulation.</span>
+    </div>
+    <div class="readout">
+      <span class="n">0.08&nbsp;&deg;C</span>
+      <span class="k">Core-temperature estimate MAE on synthetic data with a skin patch, versus 0.36&nbsp;&deg;C for a heart-rate-only filter. Not yet validated against measured core temperature.</span>
+    </div>
+  </div>
+
+  <section>
+    <p class="eyebrow" data-idx="1">Context</p>
+    <h2>The regulatory baseline</h2>
+    <p>Migrant construction and delivery workers in the Gulf are exposed to a humid-heat hazard linked to excess cardiovascular mortality (Pradhan et&nbsp;al., 2019) and, for gig workers, flagged by Human Rights Watch and a 2024 ILO convention. Qatar Ministerial Decision&nbsp;17/2021 mandates a fixed midday outdoor-work ban (about 10:00&ndash;15:30, 1&nbsp;June to 15&nbsp;September) and a stop-work clause at WBGT above 32.1&nbsp;&deg;C.</p>
+    <p>On the 16-year record, WBGT exceeds 32.1&nbsp;&deg;C on 58 to 61% of hours in the regulated summer working window, and the annual exceedance-hour count is trending up.</p>
+  </section>
+
+  <section>
+    <p class="eyebrow" data-idx="2">Forecast evaluation</p>
+    <h2>Four hypotheses, all rejected</h2>
+    <div class="tablewrap">
+      <table class="ledger">
+        <thead><tr><th>Hypothesis</th><th>Finding</th></tr></thead>
+        <tbody>
+          <tr><td>Bias-correct NWP WBGT better than the raw forecast</td><td>Raw 24&nbsp;h forecast MAE 0.80&nbsp;&deg;C, miss rate 6.8%. The correction model is worse on every metric.</td></tr>
+          <tr><td>Metro-scale spatial downscaling adds safety information</td><td>The resolved coast-to-inland WBGT gradient is about 0.5&nbsp;&deg;C, and inland sites read lower (humidity dominates). A single grid forecast errs on the safe side.</td></tr>
+          <tr><td>Dry-advection (Shamal) regimes break the gridded product</td><td>Over 12 years the reanalysis bias is smaller during these regimes, not larger; an NW-wind gate removes the excess entirely.</td></tr>
+          <tr><td>Forecasts fail specifically on the dangerous days</td><td>Forecast MAE is flat across WBGT bands (0.88&nbsp;&deg;C above 34&nbsp;&deg;C); severe hours are caught 99.7% of the time.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:0.86rem;color:var(--muted)">Each was tested with walk-forward evaluation, station adjudication, and block-bootstrap intervals. See the results ledger for the full list of 18 questions.</p>
+  </section>
+
+  <section>
+    <p class="eyebrow" data-idx="3">Finding</p>
+    <h2>The calendar ban is too narrow</h2>
+    <p>Applying the ACGIH TLV screening criteria to the 16-year WBGT record: the ban covers 25% of daylight warm-season hours. For heavy work by unacclimatised workers, 1085&nbsp;hours per year of physiologically unsafe conditions fall outside the ban window &mdash; 57% of the hours it leaves open, and 63% of all such unsafe daylight hours. Over-restriction (hours the ban closes that are in fact safe) is about 6% for light acclimatised work and near zero for anything heavier.</p>
+  </section>
+
+  <section>
+    <p class="eyebrow" data-idx="4">Contribution 1</p>
+    <h2>Risk-optimal work/rest scheduling</h2>
+    <p>Given a crew that must deliver a fixed number of work-hours and an uncertain WBGT forecast, choose the hourly work fraction that minimises the conditional value at risk of accumulated thermal load (a linear program). Walk-forward over 236 held-out days, scored against realised conditions, all policies delivering the same 9 work-hours:</p>
+    <figure>
+      <svg viewBox="0 0 560 176" role="img" aria-label="Mean and p90 peak thermal load: calendar 8.0 and 16.2; smart-reactive 8.2 and 17.0; optimiser 6.9 and 13.6; oracle 5.8 and 12.9.">
+        <line x1="150" y1="10" x2="150" y2="146" stroke="var(--rule)" stroke-width="1"/>
+        <line x1="150" y1="146" x2="548" y2="146" stroke="var(--rule)" stroke-width="1"/>
+        <text x="142" y="30" text-anchor="end" class="chart-lbl">calendar</text>
+        <rect x="150" y="20" width="173" height="10" fill="var(--hazard)"/>
+        <rect x="150" y="32" width="350" height="10" fill="var(--hazard)" opacity="0.32"/>
+        <text x="330" y="29" class="chart-val">8.0</text>
+        <text x="142" y="62" text-anchor="end" class="chart-lbl">smart-reactive</text>
+        <rect x="150" y="52" width="177" height="10" fill="var(--hazard)"/>
+        <rect x="150" y="64" width="368" height="10" fill="var(--hazard)" opacity="0.32"/>
+        <text x="334" y="61" class="chart-val">8.2</text>
+        <text x="142" y="94" text-anchor="end" class="chart-lbl">optimiser</text>
+        <rect x="150" y="84" width="150" height="10" fill="var(--holds)"/>
+        <rect x="150" y="96" width="294" height="10" fill="var(--holds)" opacity="0.32"/>
+        <text x="306" y="93" class="chart-val">6.9</text>
+        <text x="142" y="126" text-anchor="end" class="chart-lbl">oracle</text>
+        <rect x="150" y="116" width="126" height="10" fill="var(--muted)"/>
+        <rect x="150" y="128" width="279" height="10" fill="var(--muted)" opacity="0.32"/>
+        <text x="282" y="125" class="chart-val">5.8</text>
+        <text x="150" y="162" text-anchor="middle" class="chart-txt">0</text>
+        <text x="345" y="162" text-anchor="middle" class="chart-txt">peak retained thermal load (solid: mean, faint: p90)</text>
+      </svg>
+      <figcaption>The stochastic (CVaR) optimiser is 3% worse than a deterministic point-forecast optimiser here: the forecast is accurate enough that hedging over-conservatises. The stochastic formulation is expected to help only at longer leads with a genuine ensemble, under a hard chance constraint, or with intraday re-planning.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <p class="eyebrow" data-idx="5">Contribution 2</p>
+    <h2>Individual heat-strain estimation (proof of concept)</h2>
+    <p>A particle filter with a two-node thermoregulation process model, forced by the measured environment and an accelerometry-derived metabolic rate, estimating individual core temperature from heart rate and a skin-temperature patch. It self-calibrates to the person through a latent metabolic scale, and propagates the particle cloud forward under the WBGT forecast to give the probability of core temperature exceeding 38.5&nbsp;&deg;C within a horizon.</p>
+    <div class="tablewrap">
+      <table class="ledger">
+        <thead><tr><th>Method</th><th>MAE</th><th>95% coverage</th></tr></thead>
+        <tbody>
+          <tr><td>Heart-rate-only Kalman filter (ECTemp class)</td><td>0.36&nbsp;&deg;C</td><td>&ndash;</td></tr>
+          <tr><td>Physics filter, HR + activity</td><td>0.19&nbsp;&deg;C</td><td>77%</td></tr>
+          <tr><td>Physics filter, HR + activity + skin patch</td><td>0.083&nbsp;&deg;C</td><td>92%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout">
+      <span class="tag">Synthetic</span>
+      <p>The physiology here is generated by the two-node model, not measured. The numbers are indicative. Validation requires a wearable pilot with ingestible-capsule ground truth; the protocol is in <span style="font-family:'IBM Plex Mono',monospace;font-size:0.9em">docs/digital_twin_protocol.md</span>.</p>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow" data-idx="6">Further work</p>
+    <h2>Next steps</h2>
+    <ul class="tight">
+      <li>The wearable pilot: 30 participants over at least 4 sessions, ingestible-capsule ground truth, a mixed-effects Bland&ndash;Altman primary endpoint, and sensor-ablation and acclimatisation secondary endpoints.</li>
+      <li>Completing the GEFS v12 reforecast backfill (2000&ndash;2019) and refreshing the ensemble calibration and forecast-reliability results on the full record.</li>
+      <li>A targeted ERA5 cross-check of the forecast-evaluation findings.</li>
+      <li>Instrumented sites for block-scale microclimate, which the spatial and extreme-day analyses show public products cannot resolve.</li>
+    </ul>
+  </section>
+
+  <footer>
+    <p>Method basis: Liljegren WBGT (thermofeel); ACGIH TLV screening (ISO&nbsp;7243); the two-node Gagge&ndash;Stolwijk&ndash;Nishi model; Rockafellar&ndash;Uryasev CVaR optimisation; a bootstrap particle filter. Station observations (OTHH METAR) are used as the reference throughout and identified a wind-data defect in the reanalysis archive from November&nbsp;2024, since patched. All results reproduce from <span style="font-family:'IBM Plex Mono',monospace">run_all.sh</span>.</p>
+  </footer>
+
+</div>
+</body>
+</html>
