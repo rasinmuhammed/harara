@@ -21,6 +21,8 @@ scratch/
 
 # Credentials
 .cdsapirc
+.env
+.env.*
 *.key
 *.pem
 
