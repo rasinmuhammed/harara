@@ -360,7 +360,7 @@ def _parse_work_hours(s: str) -> float | None:
 
 
 def _parse_crew_size(s: str) -> int:
-    m = re.search(r"crew\s+of\s+(\d+)|team\s+of\s+(\d+)|(\d+)[- ]person|"
+    m = re.search(r"(?:crew|team|gang|group|squad)\s+of\s+(\d+)|(\d+)[- ]person|"
                   r"(\d+)\s+workers?|(\d+)\s+labou?rers?", s)
     if m:
         return int(next(g for g in m.groups() if g))

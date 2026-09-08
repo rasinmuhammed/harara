@@ -359,7 +359,60 @@ forecast, validated against ingestible-capsule temperature in a migrant-labour
 cohort, has not been published. The pilot design is in
 `docs/digital_twin_protocol.md`.
 
-## 10. Proposed system
+## 10. Language-model layer
+
+An optional interface sits on top of the deterministic scheduler. It does
+four things and nothing else:
+
+1. parses a free-text scheduling request into a validated tool call;
+2. extracts structured constraints from a rule document, with a
+   character-offset citation for every value;
+3. drafts a shift briefing from a scheduler result;
+4. decides when a re-planned day has changed enough that a human should
+   look, and drafts the explanation.
+
+It never computes or estimates a WBGT, a schedule, a risk or a threshold.
+Those come only from `src/wbgt.py`, `src/scheduler.py` and
+`src/heat_stress.py`, reached through a typed tool layer
+(`src/agent/tools.py`) whose requests and responses are Pydantic models,
+so an invalid or under-specified call fails before any computation runs.
+
+**Enforcement.** The model is reached only through one interface
+(`src/agent/llm.py`), with a deterministic `MockLLM` used by the tests and
+the offline pipeline; the default model is deliberately unset. Parsing
+fails closed: a safety-relevant field (date, work-hours, workload class,
+acclimatisation, location) that is not supported by evidence in the
+request text is returned as a clarification question, never a guessed
+value (`src/agent/parse.py`). Rule extraction cannot write a value
+without a source span that resolves to the quoted text
+(`src/agent/rule_store.py`), and a record is invisible to the scheduler
+until a person confirms it (`scripts/rules_review.py`). Briefings pass a
+numeric guard that rejects the draft if any number in it is absent from
+the scheduler response, and a rule guard that rejects any unresolved
+`[rule:id#field]` reference (`src/agent/brief.py`); a failed draft is
+retried once, then refused. Monitoring alerts are held to the same
+numeric guard against the two plans being compared.
+
+**Material change** (`src/agent/monitor.py`) is fixed in code, not left
+to the model: a re-optimised plan is material if any working hour flips
+allowed/blocked state, if peak or 90th-percentile tail retained load
+moves by more than 15%, if the number of stop-work hours changes, or if a
+work shortfall appears where there was none.
+
+**Evaluation** (`eval/agent_eval.py`, four rule documents with
+hand-labelled gold records under `eval/agent_eval/rules/`, 18 natural-
+language requests, 10 briefing scenarios). Against the mock the layer
+scores field-level precision and recall of 1.0 on all four extracted
+constraint types with every citation resolving; outcome-exact-match 1.0
+over the 18 requests with every ambiguous request asking back; zero
+ungrounded numbers across 67 numeric tokens in generated briefings, with
+the numeric guard catching every injected number; and every rule
+reference resolving. These figures measure the plumbing and the guards,
+not the language model: the mock is a regex stand-in and the source
+documents use canonical phrasing. The harness takes `--model` for a real
+adapter, which is the measurement that matters and is still to be run.
+
+## 11. Proposed system
 
 ```
 wearables (HR, accelerometry, skin patch)
@@ -373,7 +426,7 @@ Section 8 demonstrates the scheduling step on real data. Section 9 demonstrates
 the estimation step on synthetic physiology. The pilot validates the estimation
 step against capsule temperature.
 
-## 11. Limitations
+## 12. Limitations
 
 1. Ground truth is a single station (OTHH) in one metro area; spatial
    generality is untested.
@@ -394,7 +447,7 @@ step against capsule temperature.
 8. ACGIH TLVs are conservative population screening thresholds, not
    individualised medical limits.
 
-## 12. Further work
+## 13. Further work
 
 1. The wearable pilot (`docs/digital_twin_protocol.md`): 30 participants over
    at least 4 sessions, ingestible-capsule ground truth, a mixed-effects
@@ -406,12 +459,13 @@ step against capsule temperature.
 4. Instrumented sites for block-scale microclimate, which sections 5.2 and 5.4
    show public products cannot provide.
 
-## 13. Reproducibility
+## 14. Reproducibility
 
 `./run_all.sh` runs the pipeline in stages (fetch, WBGT, patch, studies,
-scheduler, twin). Seeds are fixed. The environment is pinned in
+scheduler, twin, agent eval). Seeds are fixed. The environment is pinned in
 `requirements.txt`. The physics, statistics and metrics have unit tests under
-`tests/`.
+`tests/`. The agent layer runs against a deterministic mock by default;
+`AGENT_MODEL` points it at a real adapter.
 
 ## References
 

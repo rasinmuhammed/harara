@@ -72,4 +72,10 @@ run scripts/scheduler_study.py
 run scripts/digital_twin_demo.py
 run scripts/make_figures.py
 
+# ---------------------------------------------------------------- 7. agent layer
+# Deterministic by default (MockLLM); set AGENT_MODEL to a real adapter to
+# score the language model itself.
+run scripts/rules_ingest.py --eval-set --out data/rules --model "${AGENT_MODEL:-mock}"
+run eval/agent_eval.py --model "${AGENT_MODEL:-mock}" --json data/agent_eval.json
+
 echo; echo "=== done. see docs/technical_report.md ==="

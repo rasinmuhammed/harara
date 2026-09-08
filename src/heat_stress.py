@@ -98,13 +98,14 @@ def stop_work(
 
 def continuous_work_limit_c(workload: str = "moderate",
                             acclimatized: bool = True) -> float:
-    """The WBGT (deg C) at which this workload can be worked continuously
-    (the 100% row of the ACGIH table). For very_heavy, where continuous
-    work is not tabulated, the 75% limit is used."""
+    """Reference WBGT (deg C) for this workload and state: the 100% row of
+    the ACGIH table. `very_heavy` has no tabulated continuous or 45/15
+    cycle, so the most permissive cycle that IS tabulated for it (30/30)
+    is used as the reference instead."""
     if workload not in WORKLOADS:
         raise ValueError(f"workload must be one of {WORKLOADS}")
     table = _limits(acclimatized)
-    for frac in (1.00, 0.75):
+    for frac in WORK_FRACTIONS:
         lim = table[frac][workload]
         if lim is not None:
             return float(lim)

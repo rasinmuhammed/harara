@@ -27,6 +27,10 @@ what changed as a consequence. Ordered chronologically.
 | 16 | Can a physics filter estimate individual core temperature better than heart rate alone? | Two-node model and particle filter, synthetic, `digital_twin_demo.py` | Heart-rate-only 0.36 C MAE; physics filter with HR, activity and a skin patch 0.083 C MAE, 92% coverage | Supported on synthetic data |
 | 17 | Does the filter give useful anticipatory warning? | Forward propagation under a forecast ensemble | Recall 0.91 at alarm probability 0.35; forward probability rises from 0.34 to 0.86 as the crossing approaches; about 45 minutes of median warning | Partial on synthetic data; probability calibration is a pilot endpoint |
 | 18 | Can we predict at issue time that the day's peak-WBGT forecast will be wrong? | `gefs_reliability_study.py`: LightGBM, held-out-by-year, PR-AUC with block bootstrap, against a spread-decile rule | Pending the backfill; predicts GEFS-versus-reanalysis divergence, about 7 scorable years, wide interval | Built; the multi-year reliability study from #12, unblocked |
+| 19 | Can a language model add an interface layer without becoming a source of numbers? | Typed tool layer over the scheduler; model reached through one interface with a deterministic mock; `tests/test_agent_tools.py` | The four tools (`get_forecast`, `compute_wbgt`, `run_scheduler`, `lookup_rule`) wrap existing code with Pydantic request/response validation and no logic of their own; an under-specified call fails before any computation | Built |
+| 20 | Does fail-closed natural-language parsing actually refuse to guess? | 18 hand-written requests (8 complete, 10 ambiguous), `eval/agent_eval.py` tool-calls section | Outcome exact-match 1.0; parsed-field accuracy 1.0; every ambiguous request returns a clarification naming the missing safety field, none guessed. Measured against a regex mock, not a language model | Built; real-model score outstanding |
+| 21 | Can rule documents be turned into scheduler constraints with a citation for every value? | 4 rule documents with hand-labelled gold records; `rules_ingest.py` writes versioned records that the store rejects without a resolving source span; `rules_review.py` confirm gate | Field-level precision and recall 1.0 on banned windows, stop-work threshold, seasonal window and rest ratios; all 13 citations resolve. Canonical phrasing and a mock extractor, so this measures the store and the citation check, not extraction from messy text | Built; real-model score outstanding |
+| 22 | Can a generated briefing state a number that is not in the tool output? | 10 briefing scenarios (6 clean, 4 with an injected foreign number), numeric guard in `src/agent/brief.py` | Zero ungrounded numbers across 67 numeric tokens in clean briefings; the guard flags every injected number and nothing else; every `[rule:id#field]` reference resolves. A failed draft is retried once, then refused | Built |
 
 ## Summary
 
@@ -41,6 +45,11 @@ uncovered; risk-optimal scheduling reduces peak and tail heat strain by about
 Supported on synthetic data, pending a pilot: a physics filter estimates
 individual core temperature about four times more accurately than the
 heart-rate-only state of the art.
+
+Built, deterministic core intact: a language-model interface layer that parses
+requests, extracts cited rule constraints, and writes grounded briefings
+without producing any number itself. The guards and the store are tested; the
+quality of a real model on messy input is not yet measured.
 
 Open, and requiring the pilot: anticipatory individual heat-strain estimation
 against measured core temperature; block-scale microclimate modelling.
