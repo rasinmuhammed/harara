@@ -30,6 +30,34 @@ heat-strain estimator is in [`docs/digital_twin_protocol.md`](docs/digital_twin_
 | Does risk-optimal scheduling beat the calendar rule at equal output? | Yes in simulation: mean peak thermal load down about 14%, the tail down about 20%, no work unmet, at all leads. |
 | Can a physics filter estimate individual core temperature better than heart rate alone? | Yes on synthetic data: MAE 0.08 C with a skin-temperature patch, versus 0.36 C for a heart-rate-only Kalman filter. Not yet validated against measured core temperature. |
 
+## Product direction
+
+The deterministic core in this repository (forecast to WBGT to physiological
+work/rest allocation to a risk-optimal schedule) is the engine. The intended
+product wraps it with a thin agentic layer that acts as an interface and an
+explanation surface, not as a source of numbers.
+
+The design rule, enforced in code and in tests, is that the language model
+never computes or estimates WBGT, schedules, risk, or thresholds. All
+computation stays in deterministic Python. The model does four things:
+
+1. Parses unstructured requests into validated tool calls, failing closed on
+   any missing safety-relevant parameter rather than guessing.
+2. Extracts rules from documents (a labour ministry decision, an ACGIH table, a
+   platform duty-of-care policy, a site SOP) into structured constraints, each
+   field carrying a verbatim source quote and character offset. Nothing is used
+   by the scheduler until a human confirms it.
+3. Generates shift briefings whose every number is copied from a tool output
+   and every rule reference cites a stored record; a post-generation check
+   rejects any numeric token not present in the tool outputs.
+4. Decides when a re-planned schedule has changed enough to warrant a human
+   alert, and writes the explanation.
+
+The model sits behind a model-agnostic interface with a mock implementation, so
+the pipeline runs offline and the choice of model is deferred. See
+`docs/llm_layer_plan.md` for the tool schemas, the rule-store format, and the
+evaluation design.
+
 ## Layout
 
 ```

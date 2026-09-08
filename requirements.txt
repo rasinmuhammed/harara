@@ -2,6 +2,7 @@
 pandas>=2.0
 numpy>=1.24
 scipy>=1.11
+pydantic>=2.0
 requests>=2.31
 
 # WBGT / physiology / ML

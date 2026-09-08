@@ -96,6 +96,21 @@ def stop_work(
     return allowable_work_fraction(wbgt_c, workload, acclimatized) == 0.0
 
 
+def continuous_work_limit_c(workload: str = "moderate",
+                            acclimatized: bool = True) -> float:
+    """The WBGT (deg C) at which this workload can be worked continuously
+    (the 100% row of the ACGIH table). For very_heavy, where continuous
+    work is not tabulated, the 75% limit is used."""
+    if workload not in WORKLOADS:
+        raise ValueError(f"workload must be one of {WORKLOADS}")
+    table = _limits(acclimatized)
+    for frac in (1.00, 0.75):
+        lim = table[frac][workload]
+        if lim is not None:
+            return float(lim)
+    raise ValueError(f"no limit for {workload}")
+
+
 # Qatar Ministerial Decision 17/2021: blanket outdoor-work ban 10:00-15:30
 # local time, 1 June - 15 September, plus a WBGT>32.1 stop anytime.
 QATAR_BAN_MONTHS = (6, 7, 8, 9)

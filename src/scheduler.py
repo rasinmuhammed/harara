@@ -46,13 +46,19 @@ def _retention_matrix(H: int, phi: float) -> np.ndarray:
     return A
 
 
+def retained_load_path(w: np.ndarray, wbgt_true: np.ndarray,
+                       phi=PHI_DEFAULT, wbgt_ref=WBGT_REF_DEFAULT,
+                       p=P_DEFAULT) -> np.ndarray:
+    """Hour-by-hour retained thermal load for a schedule against one WBGT path."""
+    load = hourly_load(wbgt_true, wbgt_ref, p)
+    A = _retention_matrix(len(w), phi)
+    return A @ (np.asarray(w, dtype=float) * load)
+
+
 def realized_strain(w: np.ndarray, wbgt_true: np.ndarray,
                     phi=PHI_DEFAULT, wbgt_ref=WBGT_REF_DEFAULT, p=P_DEFAULT) -> float:
     """Peak retained thermal load for a schedule against one WBGT path."""
-    load = hourly_load(wbgt_true, wbgt_ref, p)
-    A = _retention_matrix(len(w), phi)
-    H_path = A @ (np.asarray(w, dtype=float) * load)
-    return float(H_path.max())
+    return float(retained_load_path(w, wbgt_true, phi, wbgt_ref, p).max())
 
 
 @dataclass
