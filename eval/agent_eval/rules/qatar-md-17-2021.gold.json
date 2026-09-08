@@ -1,0 +1,37 @@
+{
+  "banned_hour_windows": [
+    {
+      "start": "10:00",
+      "end": "15:30",
+      "citation": {
+        "span": [
+          319,
+          349
+        ],
+        "quote": "prohibited from 10:00 to 15:30"
+      }
+    }
+  ],
+  "wbgt_stop_work_c": {
+    "value": 32.1,
+    "citation": {
+      "span": [
+        506,
+        534
+      ],
+      "quote": "reaches 32.1 degrees Celsius"
+    }
+  },
+  "seasonal_window": {
+    "start": "06-01",
+    "end": "09-15",
+    "citation": {
+      "span": [
+        211,
+        238
+      ],
+      "quote": "from 1 June to 15 September"
+    }
+  },
+  "workload_rest_ratios": []
+}

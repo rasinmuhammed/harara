@@ -1,0 +1,7 @@
+Site standard operating procedure: outdoor work in hot conditions (synthetic example).
+
+Working window. From May through September, no outdoor work is carried out between 11:00 and 16:00.
+
+Stop-work. All outdoor activity stops when the site WBGT meter reads 30.5 degrees Celsius or above.
+
+Task limits. When WBGT exceeds 28.0 degrees Celsius, heavy tasks are limited to a 50 percent work fraction (30 minutes of work per hour); moderate tasks are limited to a 75 percent work fraction.

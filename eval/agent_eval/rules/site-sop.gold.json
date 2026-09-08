@@ -1,0 +1,60 @@
+{
+  "banned_hour_windows": [
+    {
+      "start": "11:00",
+      "end": "16:00",
+      "citation": {
+        "span": [
+          132,
+          186
+        ],
+        "quote": "no outdoor work is carried out between 11:00 and 16:00"
+      }
+    }
+  ],
+  "wbgt_stop_work_c": {
+    "value": 30.5,
+    "citation": {
+      "span": [
+        252,
+        278
+      ],
+      "quote": "reads 30.5 degrees Celsius"
+    }
+  },
+  "seasonal_window": {
+    "start": "05-01",
+    "end": "09-30",
+    "citation": {
+      "span": [
+        104,
+        130
+      ],
+      "quote": "From May through September"
+    }
+  },
+  "workload_rest_ratios": [
+    {
+      "workload": "heavy",
+      "work_fraction": 0.5,
+      "citation": {
+        "span": [
+          343,
+          396
+        ],
+        "quote": "heavy tasks are limited to a 50 percent work fraction"
+      }
+    },
+    {
+      "workload": "moderate",
+      "work_fraction": 0.75,
+      "citation": {
+        "span": [
+          428,
+          484
+        ],
+        "quote": "moderate tasks are limited to a 75 percent work fraction"
+      }
+    }
+  ]
+}

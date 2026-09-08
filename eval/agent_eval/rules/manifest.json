@@ -1,0 +1,26 @@
+{
+  "qatar-md-17-2021": {
+    "rule_id": "qatar-md-17-2021",
+    "title": "Ministerial Decision 17/2021 - heat stress precautions",
+    "jurisdiction": "Qatar",
+    "tags": ["qatar", "statutory", "midday-ban", "wbgt-stop-work", "construction"]
+  },
+  "acgih-work-rest": {
+    "rule_id": "acgih-work-rest",
+    "title": "ACGIH TLV heat-stress screening criteria",
+    "jurisdiction": "ACGIH (guidance)",
+    "tags": ["acgih", "guidance", "work-rest", "wbgt"]
+  },
+  "platform-duty-of-care": {
+    "rule_id": "platform-duty-of-care",
+    "title": "Delivery rider heat safety policy",
+    "jurisdiction": "operator policy (synthetic)",
+    "tags": ["delivery", "policy", "midday-ban", "wbgt-stop-work"]
+  },
+  "site-sop": {
+    "rule_id": "site-sop",
+    "title": "Site SOP - outdoor work in hot conditions",
+    "jurisdiction": "site policy (synthetic)",
+    "tags": ["construction", "policy", "midday-ban", "wbgt-stop-work", "work-rest"]
+  }
+}

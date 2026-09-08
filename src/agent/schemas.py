@@ -268,11 +268,50 @@ class LookupRuleResponse(BaseModel):
 # --------------------------------------------------------------------------
 # NL parsing outcome
 # --------------------------------------------------------------------------
+class Location(BaseModel):
+    name: str
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
+
+
+class PlanIntent(BaseModel):
+    """The safety-relevant fields of a scheduling request, resolved from
+    natural language. The weather input is attached later by the caller,
+    which fetches a forecast for `location` before calling the scheduler."""
+
+    target_local_date: dt.date
+    required_work_hours: float = Field(gt=0, le=14)
+    crew: CrewParams
+    location: Location
+    timezone: str = "Asia/Qatar"
+
+    def to_request(
+        self,
+        *,
+        wbgt_hours: Optional[list[WbgtHour]] = None,
+        forecast: Optional[GetForecastResponse] = None,
+        constraints: Optional[RuleConstraints] = None,
+        beta: float = 0.90,
+        seed: int = 0,
+    ) -> RunSchedulerRequest:
+        return RunSchedulerRequest(
+            target_local_date=self.target_local_date,
+            required_work_hours=self.required_work_hours,
+            crew=self.crew,
+            constraints=constraints or RuleConstraints(),
+            timezone=self.timezone,
+            wbgt_hours=wbgt_hours,
+            forecast=forecast,
+            beta=beta,
+            seed=seed,
+        )
+
+
 class ClarificationNeeded(BaseModel):
     missing_fields: list[str]
     question: str
 
 
 class ParsedRequest(BaseModel):
-    tool: Literal["run_scheduler"]
-    request: RunSchedulerRequest
+    tool: Literal["run_scheduler"] = "run_scheduler"
+    intent: PlanIntent

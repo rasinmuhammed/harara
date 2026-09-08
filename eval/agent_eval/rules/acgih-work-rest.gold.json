@@ -1,0 +1,29 @@
+{
+  "banned_hour_windows": [],
+  "wbgt_stop_work_c": null,
+  "seasonal_window": null,
+  "workload_rest_ratios": [
+    {
+      "workload": "heavy",
+      "work_fraction": 0.5,
+      "citation": {
+        "span": [
+          482,
+          568
+        ],
+        "quote": "a 50 percent work fraction (30 minutes work per hour) applies once WBGT exceeds 26.0 C"
+      }
+    },
+    {
+      "workload": "heavy",
+      "work_fraction": 0.25,
+      "citation": {
+        "span": [
+          586,
+          645
+        ],
+        "quote": "a 25 percent work fraction applies once WBGT exceeds 28.5 C"
+      }
+    }
+  ]
+}

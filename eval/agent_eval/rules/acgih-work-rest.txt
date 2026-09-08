@@ -1,0 +1,7 @@
+ACGIH threshold limit values for heat stress, screening criteria (paraphrased).
+
+The screening criteria give the WBGT above which a work-rest cycle must be applied, by metabolic demand category. For an acclimatised worker: light work may continue at 100 percent up to 29.5 C; moderate work at 100 percent up to 27.5 C; heavy work at 100 percent up to 26.0 C. Above those values the allowable work fraction falls to 75, 50 and 25 percent of each hour as WBGT rises.
+
+For heavy work, a 50 percent work fraction (30 minutes work per hour) applies once WBGT exceeds 26.0 C. For heavy work, a 25 percent work fraction applies once WBGT exceeds 28.5 C.
+
+These are screening values for a healthy, adequately hydrated population and are not a substitute for physiological monitoring.

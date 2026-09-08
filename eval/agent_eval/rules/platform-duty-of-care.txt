@@ -1,0 +1,7 @@
+Rider heat safety policy, delivery operations (internal document, synthetic example).
+
+1. Seasonal dispatch limits. In July and August, no delivery jobs are dispatched between 12:00 and 16:00 local time in the affected zones.
+
+2. Real-time stop. Riders are stood down when the WBGT reading for their zone reaches 31.0 degrees Celsius, and are recalled only after it has been below that value for thirty minutes.
+
+3. Cooling. At least one cooling point with water and shade must be available within a two kilometre radius of every active delivery zone during the summer months.
