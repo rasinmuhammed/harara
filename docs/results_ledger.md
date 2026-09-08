@@ -1,0 +1,46 @@
+# Results Ledger
+
+An index of every question that was investigated, the method, the result, and
+what changed as a consequence. Ordered chronologically.
+
+| # | Question | Method and script | Result | Outcome |
+|---|---|---|---|---|
+| 1 | How well do trivial baselines predict Doha WBGT? | Walk-forward persistence and climatology, `run_first_result.py` | Persistence 24 h MAE about 1.3 C, miss rate about 25%; climatology miss about 32% | Baselines established |
+| 2 | Is the initial WBGT approximation trustworthy? | Component diagnostics against Liljegren, `diagnose_wbgt.py` | The algebraic globe term added +0.5 C where the physical value is about +5 C, biasing WBGT 1 to 2 C low and producing a spurious 2x exceedance spike in 2026 | Formula replaced with Liljegren / thermofeel; spike disappeared |
+| 3 | Fetch data only to 2024? | - | No reason to; extended to 2026-08 | Added the warming-trend signal |
+| 4 | Is the 2025-2026 wind, and hence WBGT, real? | Open-Meteo versus OTHH anemometer, `compare_wind_sources.py` | 2014-2024 agree to 0.03 m/s; from November 2024 Open-Meteo runs 1.5-2.5 m/s low while measured wind is normal | Patched 2024-11 onward with METAR wind; 2025-2026 exceedance counts fall 15-23%, back in range |
+| 5 | Can ERA5 be pulled as a second reanalysis? | Copernicus CDS API; ARCO-ERA5 Zarr | CDS queue: 1 of 68 chunked requests in about 2 h. ARCO: chunked one global timestep per block, unusable for a point time series | Deferred; proceeded on Open-Meteo plus METAR |
+| 6 | Does an observation-only ML model beat the baselines? | LightGBM, walk-forward, `train_layer1_v1.py` | MAE beats persistence by 12-22%; miss rate not improved (regression to the mean) | Point accuracy is not the safety metric |
+| 7 | Can the miss rate be bought with a decision threshold or a quantile loss? | Threshold sweep and quantile GBM, `tune_layer1_threshold.py` | Miss 10% at about 5% false-positive hours; miss 5% at about 7%. Quantile training helps only marginally, only in the aggressive regime | Decision threshold is the operative lever |
+| 8 | Can the NWP forecast WBGT be bias-corrected? | Forecast archive versus target, LightGBM, `train_layer1_v2_nwp.py` | Raw 24 h forecast MAE 0.80 C, miss 6.8%. The correction model is worse on every metric | Rejected; value is downstream of the forecast |
+| 9 | Does metro-scale spatial downscaling add safety information? | 9-point transect, `spatial_representativeness.py` | Inland WBGT is 0.4 to 0.8 C lower (humidity gradient dominates); a site unsafe while the reference is safe occurs on 1 to 3% of hours | Rejected; grid forecast is mildly conservative for inland sites |
+| 10 | Do forecasts fail on the dangerous days? | Error stratified by WBGT band and by event, `extreme_event_skill.py` | MAE is flat across bands (0.88 above 34 C); severe hours caught 99.7%; large errors are dry-day over-predictions | Rejected, with a caveat: on transition days all gridded products err by about 2 C |
+| 11 | Does the dry-advection regime degrade the gridded product? | 12-year regime study, block bootstrap, `regime_climatology_study.py` | Regime = 52 days per year, physically consistent, not dust. Reanalysis bias is smaller during the regime; an NW-wind gate removes the excess entirely | Rejected; the residual is a stationary +1 C bias |
+| 12 | Can a multi-year forecast-reliability study be built now? | Dataset build, `build_regime_dataset.py` | The forecast archive carries temperature only before 2024; RH and wind from 2024, about 1.5 warm seasons | Blocked; needs GEFS reforecast |
+| 12a | Pull the GEFS v12 reforecast and build a scheduler ensemble | `fetch_gefs_reforecast.py` (`.idx` byte range), `GEFSEnsembleModel`, `gefs_ensemble_check.py` | Pipeline works; lagged-ensemble spread grows with lead (0.7 to 0.9 C). Raw at this coastal point is under-dispersed and less accurate than the blend | Built; needs calibration |
+| 12b | Build a resumable 20-year (2000-2019 May-Sep) backfill | `fetch_gefs_reforecast.py` rewritten: per-year Parquet, consecutive-lead coalescing (regression-tested), retry and backoff, skip-done; `test_gefs_alignment.py` | Runs newest-first, about 34 s per (day, member) on the development network path; lead-to-local-hour-to-forecast-day alignment verified. Shortwave clipped to the clear-sky ceiling to fix a +4.9 C evening-lead bias | Built; runs unattended |
+| 12c | Does CRPS-fit EMOS (per lead and month, walk-forward) fix the raw ensemble? | `src/emos.py` (nonhomogeneous Gaussian regression), `gefs_calibration.py`; walk-forward by year, block-bootstrap intervals | Numbers pending the backfill; pipeline validated on synthetic data and one year. First year: ensemble-mean WBGT RMSE about 1.3 C at forecast day +1, spread-to-RMSE about 0.5 | Built; writes `data/gefs_emos.json` |
+| 12d | With honest lead-growing spread, does stochastic scheduling beat the deterministic optimiser? | `scheduler_study.py --uncertainty gefs` (GEFS ensemble, EMOS, ensemble copula coupling), walk-forward on the 2010-2019 overlap | Pending the backfill; the script prints the paired difference with a block-bootstrap interval and a verdict per forecast day | Built |
+| 13 | Does the calendar ban match the physiological hazard? | ACGIH TLV screening, `work_rest_analysis.py` | The ban covers 25% of daylight warm-season hours; 63% of the unsafe hours for heavy unacclimatised work fall outside it (1085 per year). Over-restriction is about 6% | Supported |
+| 14 | Does risk-optimal scheduling beat the calendar rule at equal output? | CVaR linear program, walk-forward, `scheduler_study.py` | Mean peak strain down 14% (interval [+0.80, +1.39]), tail down 16 to 20%, no shortfall, all leads | Supported |
+| 15 | Does the stochastic layer beat the deterministic optimiser (analog scenarios)? | Same study | Stochastic is 3% worse (interval [-0.25, -0.11]); the forecast is too accurate to need hedging | Rejected for this regime; conditional on a hard chance constraint or genuine ensembles |
+| 16 | Can a physics filter estimate individual core temperature better than heart rate alone? | Two-node model and particle filter, synthetic, `digital_twin_demo.py` | Heart-rate-only 0.36 C MAE; physics filter with HR, activity and a skin patch 0.083 C MAE, 92% coverage | Supported on synthetic data |
+| 17 | Does the filter give useful anticipatory warning? | Forward propagation under a forecast ensemble | Recall 0.91 at alarm probability 0.35; forward probability rises from 0.34 to 0.86 as the crossing approaches; about 45 minutes of median warning | Partial on synthetic data; probability calibration is a pilot endpoint |
+| 18 | Can we predict at issue time that the day's peak-WBGT forecast will be wrong? | `gefs_reliability_study.py`: LightGBM, held-out-by-year, PR-AUC with block bootstrap, against a spread-decile rule | Pending the backfill; predicts GEFS-versus-reanalysis divergence, about 7 scorable years, wide interval | Built; the multi-year reliability study from #12, unblocked |
+
+## Summary
+
+Rejected: bias-correcting NWP WBGT; metro-scale spatial downscaling;
+regime-conditional gridded failure; forecasts failing specifically on the
+dangerous days.
+
+Supported: the calendar ban leaves about 60% of the role-specific danger
+uncovered; risk-optimal scheduling reduces peak and tail heat strain by about
+14% and 20% at equal output.
+
+Supported on synthetic data, pending a pilot: a physics filter estimates
+individual core temperature about four times more accurately than the
+heart-rate-only state of the art.
+
+Open, and requiring the pilot: anticipatory individual heat-strain estimation
+against measured core temperature; block-scale microclimate modelling.
