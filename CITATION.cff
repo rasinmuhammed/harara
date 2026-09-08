@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+title: "Harara — anticipatory individualised heat-strain management for outdoor labour"
+message: "If you use this work, please cite it."
+type: software
+authors:
+  - given-names: Muhammed Rasin
+    family-names: "Bin Abdulla"
+repository-code: "https://example.invalid/harara"
+abstract: >
+  Technical groundwork and two proof-of-concept contributions for
+  forecast-driven, physiologically individualised heat-safety scheduling
+  for Gulf outdoor workers: (1) a CVaR work/rest scheduler that beats the
+  prevailing calendar rule, and (2) a physics-model particle filter for
+  anticipatory individual core-temperature estimation.
+keywords:
+  - occupational heat stress
+  - WBGT
+  - thermoregulation
+  - particle filter
+  - stochastic scheduling
+license: TBD
