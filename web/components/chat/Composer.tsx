@@ -17,7 +17,7 @@ export function Composer({
     if (ref.current) ref.current.value = "";
   }
   return (
-    <div className="flex items-end gap-2 border-t border-border bg-bg px-3 py-3">
+    <div data-print-hide className="flex items-end gap-2 border-t border-border bg-bg px-3 py-3">
       <textarea
         ref={ref}
         rows={1}

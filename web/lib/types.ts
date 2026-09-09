@@ -17,21 +17,30 @@ export interface HourRow {
   local_time: string;
   hour: number;
   wbgt_c: number;
+  wbgt_lo: number;
+  wbgt_hi: number;
+  uncertain: boolean;
   plan_work_fraction: number;
   calendar_work_fraction: number;
+  reactive_work_fraction: number;
   retained_load_plan: number;
   retained_load_calendar: number;
+  retained_load_reactive: number;
   plan_state: PlanState;
   over_threshold: boolean;
+  cycle: string;
 }
 
 export interface PlanSummary {
   peak_plan: number;
   peak_calendar: number;
+  peak_reactive: number;
   tail_plan: number;
   tail_calendar: number;
+  tail_reactive: number;
   pct_peak_reduction: number;
   pct_tail_reduction: number;
+  pct_peak_reduction_vs_reactive: number;
   work_hours_delivered_plan: number;
   work_hours_delivered_calendar: number;
   work_shortfall_plan: number;
@@ -45,10 +54,20 @@ export interface PlanSummary {
 export interface PlanMeta {
   model: string;
   forecast_source: string;
+  forecast_run: string;
+  lead_days: number;
   lead_time_note: string;
+  uncertainty_note: string;
+  wide_band: boolean;
+  dry_hot_day: boolean;
+  dry_hot_note: string;
   generated_at: string;
   date: string;
   location: { lat: number; lon: number; grid_note: string };
+  request: {
+    lat: number; lon: number; date: string; required_work_hours: number;
+    workload_class: WorkloadClass; acclimatised: boolean; tz: string;
+  };
   attribution: string;
 }
 
@@ -73,6 +92,7 @@ export interface ChatTurn {
   text: string;
   status?: string;
   clarification?: { question: string; missing_fields: string[] };
+  confirm?: { intent: any; locationSource: "map pin" | "your message" };
   artifact?: PlanResponse;
   error?: string;
   streaming?: boolean;

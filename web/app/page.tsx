@@ -5,6 +5,7 @@ import { SmoothScroll } from "@/components/landing/SmoothScroll";
 import { Hero } from "@/components/landing/Hero";
 import { Problem } from "@/components/landing/Problem";
 import { Idea } from "@/components/landing/Idea";
+import { Replay } from "@/components/landing/Replay";
 import { HowItWorks } from "@/components/landing/HowItWorks";
 import { Evidence } from "@/components/landing/Evidence";
 import { Close } from "@/components/landing/Close";
@@ -19,6 +20,7 @@ export default async function Page() {
         <Hero plan={plan} />
         <Problem />
         <Idea plan={plan} />
+        <Replay />
         <HowItWorks />
         <Evidence />
         <Close />
