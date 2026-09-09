@@ -116,3 +116,36 @@ def test_rate_limited_per_ip():
     err = r.json()["detail"]
     assert err["retry_after"] >= 1
     chat_limiter.reset()
+
+
+def test_intent_override_skips_parsing():
+    chat_limiter.reset()
+    body = {
+        "messages": [{"role": "user", "content": "use the fields below"}],
+        "context": {"today": TODAY.isoformat()},
+        "intent": {
+            "target_local_date": (TODAY + dt.timedelta(days=1)).isoformat(),
+            "required_work_hours": 8.0,
+            "crew": {"workload": "moderate", "acclimatised": True, "crew_size": 10},
+            "location": {"name": "doha", "lat": 25.2854, "lon": 51.531},
+            "timezone": "Asia/Qatar",
+        },
+    }
+    with client.stream("POST", "/api/chat", json=body) as r:
+        types = [json.loads(l[6:])["type"] for l in r.iter_lines()
+                 if l and l.startswith("data: ")]
+    assert "parsing" not in [t for t in types]  # no parse status frame
+    assert "artifact" in types and "clarification" not in types
+
+
+def test_intent_override_incomplete_errors_closed():
+    chat_limiter.reset()
+    body = {
+        "messages": [{"role": "user", "content": "x"}],
+        "context": {"today": TODAY.isoformat()},
+        "intent": {"required_work_hours": 8.0},  # missing crew, location, date
+    }
+    with client.stream("POST", "/api/chat", json=body) as r:
+        types = [json.loads(l[6:])["type"] for l in r.iter_lines()
+                 if l and l.startswith("data: ")]
+    assert "error" in types and "artifact" not in types

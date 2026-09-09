@@ -78,11 +78,18 @@ def _plain_summary(plan, location_name: str) -> str:
     ]
     if s.stop_hours_plan:
         parts.append(f"{s.stop_hours_plan} hours are set to rest through the "
-                     f"forecast peak.")
+                     f"hottest part of the day, then the work picks back up as "
+                     f"it cools.")
     if s.work_shortfall_plan > 0:
         parts.append(f"{s.work_shortfall_plan} of the requested work-hours do "
                      f"not fit the working window today.")
-    parts.append(f"Forecast source: {m.forecast_source}.")
+    if m.dry_hot_day:
+        parts.append(m.dry_hot_note)
+    if m.wide_band:
+        parts.append("This is several days out, so the forecast is less "
+                     "certain. Check again the morning before.")
+    else:
+        parts.append("Check the forecast again the morning before the shift.")
     return " ".join(parts)
 
 
@@ -91,44 +98,58 @@ def chat_stream(
     context: dict | None = None,
     *,
     forecast_source: str = "open-meteo",
+    intent_override: dict | None = None,
 ) -> Iterator[str]:
     context = context or {}
     today = (dt.date.fromisoformat(context["today"])
              if context.get("today") else dt.date.today())
     llm = get_llm(_LLM_NAME)
 
-    text = _last_user(messages)
-    if not text:
-        yield _sse({"type": "error", "message": "Say what you need planned."})
-        yield _sse({"type": "done"})
-        return
-
-    yield _sse({"type": "status", "state": "parsing"})
-    parsed = parse_scheduling_request(text, today=today, llm=llm)
-
-    if isinstance(parsed, ClarificationNeeded):
-        # a follow-up like "8 hours" may complete an earlier request
-        prev = _prev_user(messages)
-        if prev:
-            retry = parse_scheduling_request(
-                f"{prev}\n{text}", today=today, llm=llm)
-            if isinstance(retry, ParsedRequest):
-                parsed = retry
-        if isinstance(parsed, ClarificationNeeded):
-            yield _sse({"type": "clarification",
-                        "question": parsed.question,
-                        "missing_fields": parsed.missing_fields})
+    # A confirmed "here is what I have" card sends the structured intent back;
+    # skip parsing and go straight to the plan.
+    if intent_override:
+        from src.agent.schemas import PlanIntent
+        try:
+            intent = PlanIntent.model_validate(intent_override)
+        except Exception:
+            yield _sse({"type": "error",
+                        "message": "That plan request was incomplete. "
+                                   "Fill the fields and try again."})
+            yield _sse({"type": "done"})
+            return
+    else:
+        text = _last_user(messages)
+        if not text:
+            yield _sse({"type": "error",
+                        "message": "Say what you need planned."})
             yield _sse({"type": "done"})
             return
 
-    intent = parsed.intent
+        yield _sse({"type": "status", "state": "parsing"})
+        parsed = parse_scheduling_request(text, today=today, llm=llm)
+
+        if isinstance(parsed, ClarificationNeeded):
+            prev = _prev_user(messages)
+            if prev:
+                retry = parse_scheduling_request(
+                    f"{prev}\n{text}", today=today, llm=llm)
+                if isinstance(retry, ParsedRequest):
+                    parsed = retry
+            if isinstance(parsed, ClarificationNeeded):
+                yield _sse({"type": "clarification",
+                            "question": parsed.question,
+                            "missing_fields": parsed.missing_fields})
+                yield _sse({"type": "done"})
+                return
+        intent = parsed.intent
+
     location_name = intent.location.name.title()
 
     try:
         yield _sse({"type": "status", "state": "forecasting"})
         req = _intent_to_request(intent)
         yield _sse({"type": "status", "state": "planning"})
-        plan, sched = plan_with_sched(req, forecast_source=forecast_source)
+        plan, sched = plan_with_sched(req, forecast_source=forecast_source, today=today)
     except Exception as exc:  # noqa: BLE001 - forecast upstream or solver
         yield _sse({"type": "error",
                     "message": "The forecast service did not respond. "

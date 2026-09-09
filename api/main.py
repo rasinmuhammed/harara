@@ -13,7 +13,9 @@ Env:
 from __future__ import annotations
 
 import datetime as dt
+import json
 import os
+import pathlib
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -65,7 +67,7 @@ def plan(req: PlanRequest) -> PlanResponse:
             detail=f"date must be within today .. today+{FORECAST_HORIZON_DAYS} days",
         )
     try:
-        return build_plan(req, forecast_source=FORECAST_SOURCE)
+        return build_plan(req, forecast_source=FORECAST_SOURCE, today=today)
     except HTTPException:
         raise
     except Exception as exc:  # noqa: BLE001 - upstream/forecast failure
@@ -96,7 +98,27 @@ def chat(req: ChatRequest, request: Request):
         )
     messages = [m.model_dump() for m in req.messages]
     return StreamingResponse(
-        chat_stream(messages, req.context, forecast_source=FORECAST_SOURCE),
+        chat_stream(messages, req.context, forecast_source=FORECAST_SOURCE,
+                    intent_override=req.intent),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@app.get("/api/replay")
+def replay_index():
+    d = pathlib.Path(__file__).parent / "data" / "replay"
+    weeks = []
+    for f in sorted(d.glob("*.json")) if d.exists() else []:
+        j = json.loads(f.read_text())
+        weeks.append({"slug": f.stem, "title": j.get("title", f.stem),
+                      "subtitle": j.get("subtitle", "")})
+    return {"weeks": weeks}
+
+
+@app.get("/api/replay/{slug}")
+def replay_week(slug: str):
+    f = pathlib.Path(__file__).parent / "data" / "replay" / f"{slug}.json"
+    if not f.exists() or "/" in slug or ".." in slug:
+        raise HTTPException(status_code=404, detail="no such replay")
+    return json.loads(f.read_text())

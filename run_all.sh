@@ -83,4 +83,9 @@ run scripts/make_figures.py
 run scripts/rules_ingest.py --eval-set --out data/rules --model "${AGENT_MODEL:-mock}"
 run eval/agent_eval.py --model "${AGENT_MODEL:-mock}" --json data/agent_eval.json
 
+# --------------------------------------------------- 8. site data artefacts
+# Small distilled tables the API ships (forecast-error band, one replay week).
+run_if data/doha_forecast_archive.csv scripts/build_residual_table.py
+run_if data/doha_wbgt_16yr.csv scripts/build_replay_weeks.py
+
 echo; echo "=== done. see docs/technical_report.md ==="

@@ -4,25 +4,29 @@ Translate a PlanRequest into a PlanResponse.
 Flow: get_forecast -> compute_wbgt -> run_scheduler (the typed tool layer),
 then read the per-hour detail back out.
 
-The headline peak/tail numbers in `summary` come straight from
+Headline peak/tail numbers in `summary` come straight from
 RunSchedulerResponse (`plan_*` and `baseline_*`, the latter being the
-`policy_calendar` clock-ban baseline). Only the per-hour retained-load series
-for the chart and the calendar baseline's per-hour fraction are re-derived,
-with `policy_calendar` and `retained_load_path`, the same functions
-schedule_service uses internally, so a third-decimal rounding drift on a chart
-point is possible but the summary is authoritative.
+`policy_calendar` clock-ban baseline). Per-hour retained-load series, the
+calendar baseline's hourly fraction, and the stop-when-hot reactive series are
+re-derived with `policy_calendar`, `policy_reactive` and `retained_load_path`,
+the same functions schedule_service uses internally.
 
-The comparison follows technical_report section 8: both policies deliver the
-same required work-hours, and neither is given a hard 32.1 C stop. The calendar
-baseline is the fixed 10:00-15:30 midday ban (`policy_calendar`); the optimiser
-reshapes the day to minimise retained heat load at equal output. Hours where
-the plan still schedules work above 32.1 C are reported as `over_threshold` so
-the client can flag them; the hard stop is applied on top by the operator.
+The comparison follows technical_report section 8: the plan, the fixed calendar
+ban, and the reactive rule all deliver the same required work-hours, and none
+is given a hard 32.1 C stop. The plan minimises retained heat load; hours where
+it still schedules work above 32.1 C are reported as `over_threshold`.
+
+Each hour also carries a p10 to p90 forecast band from
+`api/data/wbgt_residuals.json` (built once by scripts/build_residual_table.py).
+The plan stays on the point forecast (section 15); the band only marks which
+hours are borderline across plausible forecasts.
 """
 
 from __future__ import annotations
 
 import datetime as dt
+import json
+import pathlib
 
 import numpy as np
 
@@ -33,19 +37,32 @@ from src.agent.schemas import (
     RunSchedulerRequest, RunSchedulerResponse, WbgtHour,
 )
 from src.agent.tools import compute_wbgt, get_forecast, run_scheduler
-from src.scheduler import PHI_DEFAULT, policy_calendar, retained_load_path
+from src.scheduler import (
+    PHI_DEFAULT, policy_calendar, policy_reactive, retained_load_path,
+)
 from src.wbgt import QATAR_WBGT_STOP_WORK_THRESHOLD_C
 
 THRESHOLD_C = QATAR_WBGT_STOP_WORK_THRESHOLD_C
 TAIL_PCT = 90.0
-_FULL_WORK = 0.95   # plan fractions at/above this read as "work", below as "reduced"
+_FULL_WORK = 0.95
+
+_RESID = json.loads(
+    (pathlib.Path(__file__).parent / "data" / "wbgt_residuals.json").read_text()
+)
 
 _LEAD_NOTE = (
-    "Single-point forecast for the chosen grid cell; nominal lead is the "
-    "gap between today and the target date. Screening decision-support built "
-    "on the ACGIH TLV work/rest tables and Qatar Decision 17/2021, not "
-    "medical advice, and not a substitute for on-site physiological "
-    "monitoring."
+    "Single-point forecast for the chosen grid cell. Screening decision-support "
+    "built on the ACGIH TLV work/rest tables and Qatar Decision 17/2021, not "
+    "medical advice, and not a substitute for on-site physiological monitoring."
+)
+_UNCERTAINTY_NOTE = (
+    "The band on each hour is the p10 to p90 of past forecast error at this "
+    "lead. Where it crosses 32.1 C the hour is borderline."
+)
+_DRY_HOT_NOTE = (
+    "This day looks dry and hot. WBGT can under-read the strain when the air "
+    "is very dry, so water and rest still matter even if the number looks "
+    "lower."
 )
 
 
@@ -63,14 +80,58 @@ def _forecast(req: PlanRequest, source: str):
     return forecast_cache.get_or_set(key, produce)
 
 
+def _cycle(frac: float) -> str:
+    if frac <= 1e-9:
+        return "rest in shade"
+    if frac >= _FULL_WORK:
+        return "work the full hour"
+    if frac >= 0.625:
+        return "work about 45 minutes, rest 15 in shade"
+    if frac >= 0.375:
+        return "work about 30 minutes, rest 30 in shade"
+    return "work about 15 minutes, rest 45 in shade"
+
+
+def _band(hour: int, lead: int, wbgt: float) -> tuple[float, float, bool]:
+    q = _RESID["leads"].get(str(min(3, max(1, lead))), {}).get(str(hour))
+    if not q:
+        lo, hi = wbgt - 1.5, wbgt + 1.0
+    else:
+        widen = 1.0 if lead <= 3 else 1.0 + 0.15 * (lead - 3)
+        lo = wbgt + q["p10"] * widen
+        hi = wbgt + q["p90"] * widen
+    lo, hi = min(lo, hi), max(lo, hi)
+    return round(lo, 1), round(hi, 1), bool(lo <= THRESHOLD_C <= hi)
+
+
+def _dry_hot(fc_hours, target_date: dt.date, tz: str, wbgt_by_hour: dict) -> bool:
+    import zoneinfo
+
+    z = zoneinfo.ZoneInfo(tz)
+    rows = []
+    for h in fc_hours:
+        loc = h.time_utc.astimezone(z)
+        if loc.date() == target_date and 10 <= loc.hour <= 16:
+            rows.append((loc.hour, h.temp_c, h.rh_pct))
+    if len(rows) < 4 or target_date.month not in (4, 5, 6, 7, 8, 9, 10):
+        return False
+    mean_t = float(np.mean([r[1] for r in rows]))
+    mean_rh = float(np.mean([r[2] for r in rows]))
+    mean_w = float(np.mean([wbgt_by_hour.get(r[0], mean_t) for r in rows]))
+    return mean_rh < 25.0 and mean_t > 40.0 and (mean_t - mean_w) > 12.0
+
+
 def plan_with_sched(
     req: PlanRequest,
     *,
     forecast_source: str = "open-meteo",
     wbgt_hours: list[WbgtHour] | None = None,
+    today: dt.date | None = None,
 ) -> tuple[PlanResponse, RunSchedulerResponse]:
-    """The full plan plus the raw RunSchedulerResponse it was built from.
-    /api/chat needs the latter to hand to src.agent.brief.generate_briefing."""
+    today = today or dt.date.today()
+    lead_days = max(1, (req.date - today).days)
+
+    fc = None
     if wbgt_hours is None:
         fc = _forecast(req, forecast_source)
         wb = compute_wbgt(ComputeWbgtRequest(
@@ -95,44 +156,58 @@ def plan_with_sched(
     wbgt = np.array([hp.wbgt_c for hp in plan], dtype=float)
     w_plan = np.array([hp.work_fraction for hp in plan], dtype=float)
     wbgt_ref = sched.wbgt_ref_c
+    ones = np.ones(len(plan), dtype=bool)
 
-    # Decision 17/2021 baseline: the fixed 10:00-15:30 midday clock ban
-    w_cal = policy_calendar(local_hours, np.ones(len(plan), dtype=bool))
+    w_cal = policy_calendar(local_hours, ones)
+    w_react = policy_reactive(wbgt, ones, req.required_work_hours)
 
-    # per-hour retained-load series for the chart (re-derived); headline
-    # aggregates below come straight from the tool-layer response.
     path_plan = retained_load_path(w_plan, wbgt, phi=PHI_DEFAULT, wbgt_ref=wbgt_ref)
     path_cal = retained_load_path(w_cal, wbgt, phi=PHI_DEFAULT, wbgt_ref=wbgt_ref)
+    path_react = retained_load_path(w_react, wbgt, phi=PHI_DEFAULT, wbgt_ref=wbgt_ref)
+
+    peak_plan = float(sched.plan_peak_strain)
+    peak_cal = float(sched.baseline_peak_strain)
+    peak_react = float(path_react.max())
+    tail_plan = float(sched.plan_tail_strain)
+    tail_cal = float(sched.baseline_tail_strain)
+    tail_react = float(np.percentile(path_react, TAIL_PCT))
 
     def _state(frac: float) -> str:
         if frac <= 1e-9:
             return "stop"
         return "work" if frac >= _FULL_WORK else "reduced"
 
-    hours = [
-        HourRow(
+    wbgt_by_hour = {int(h): float(v) for h, v in zip(local_hours, wbgt)}
+    any_wide = lead_days > 3
+    hours = []
+    for i, hp in enumerate(plan):
+        lo, hi, unc = _band(int(local_hours[i]), lead_days, float(wbgt[i]))
+        hours.append(HourRow(
             local_time=hp.local_time,
             hour=int(hp.local_time.hour),
             wbgt_c=round(float(hp.wbgt_c), 1),
+            wbgt_lo=lo, wbgt_hi=hi, uncertain=unc,
             plan_work_fraction=round(float(w_plan[i]), 3),
             calendar_work_fraction=round(float(w_cal[i]), 3),
+            reactive_work_fraction=round(float(w_react[i]), 3),
             retained_load_plan=round(float(path_plan[i]), 3),
             retained_load_calendar=round(float(path_cal[i]), 3),
+            retained_load_reactive=round(float(path_react[i]), 3),
             plan_state=_state(float(w_plan[i])),
             over_threshold=bool(wbgt[i] > THRESHOLD_C),
-        )
-        for i, hp in enumerate(plan)
-    ]
+            cycle=_cycle(float(w_plan[i])),
+        ))
 
     summary = PlanSummary(
-        peak_plan=round(float(sched.plan_peak_strain), 3),
-        peak_calendar=round(float(sched.baseline_peak_strain), 3),
-        tail_plan=round(float(sched.plan_tail_strain), 3),
-        tail_calendar=round(float(sched.baseline_tail_strain), 3),
-        pct_peak_reduction=round(
-            _pct(sched.baseline_peak_strain, sched.plan_peak_strain), 1),
-        pct_tail_reduction=round(
-            _pct(sched.baseline_tail_strain, sched.plan_tail_strain), 1),
+        peak_plan=round(peak_plan, 3),
+        peak_calendar=round(peak_cal, 3),
+        peak_reactive=round(peak_react, 3),
+        tail_plan=round(tail_plan, 3),
+        tail_calendar=round(tail_cal, 3),
+        tail_reactive=round(tail_react, 3),
+        pct_peak_reduction=round(_pct(peak_cal, peak_plan), 1),
+        pct_tail_reduction=round(_pct(tail_cal, tail_plan), 1),
+        pct_peak_reduction_vs_reactive=round(_pct(peak_react, peak_plan), 1),
         work_hours_delivered_plan=round(float(sched.work_hours_delivered), 2),
         work_hours_delivered_calendar=round(float(w_cal.sum()), 2),
         work_shortfall_plan=round(float(sched.work_shortfall), 2),
@@ -143,25 +218,35 @@ def plan_with_sched(
         solver_status=sched.solver_status,
     )
 
+    dry_hot = bool(fc is not None and _dry_hot(fc.hours, req.date, req.tz,
+                                               wbgt_by_hour))
     meta = PlanMeta(
         model="liljegren-thermofeel / cvar-lp",
         forecast_source=("synthetic (deterministic mock)"
                          if forecast_source == "mock"
                          else "Open-Meteo forecast API (ERA5-blend NWP)"),
+        forecast_run=("synthetic" if forecast_source == "mock"
+                      else "latest available model run"),
+        lead_days=int(lead_days),
         lead_time_note=_LEAD_NOTE,
+        uncertainty_note=_UNCERTAINTY_NOTE,
+        wide_band=any_wide,
+        dry_hot_day=dry_hot,
+        dry_hot_note=_DRY_HOT_NOTE if dry_hot else "",
         generated_at=dt.datetime.now(dt.timezone.utc),
         date=req.date,
         location={"lat": round(fc_lat, 4), "lon": round(fc_lon, 4),
-                  "grid_note": "nearest forecast grid cell"},
+                  "grid_note": "nearest forecast grid cell, about 25 km across"},
         attribution="Weather data by Open-Meteo.com, CC BY 4.0",
     )
     return PlanResponse(hours=hours, summary=summary, meta=meta), sched
 
 
 def build_plan(req: PlanRequest, *, forecast_source: str = "open-meteo",
-               wbgt_hours: list[WbgtHour] | None = None) -> PlanResponse:
-    return plan_with_sched(
-        req, forecast_source=forecast_source, wbgt_hours=wbgt_hours)[0]
+               wbgt_hours: list[WbgtHour] | None = None,
+               today: dt.date | None = None) -> PlanResponse:
+    return plan_with_sched(req, forecast_source=forecast_source,
+                           wbgt_hours=wbgt_hours, today=today)[0]
 
 
 def _pct(base: float, other: float) -> float:

@@ -109,3 +109,22 @@ def test_plan_matches_snapshot():
         for k in ("wbgt_c", "plan_work_fraction", "calendar_work_fraction",
                   "retained_load_plan", "retained_load_calendar"):
             assert abs(g[k] - w[k]) < 1e-6, (k, g, w)
+
+
+def test_plan_has_band_reactive_and_cycle():
+    p = _plan()
+    for h in p.hours:
+        assert h.wbgt_lo <= h.wbgt_hi
+        assert h.uncertain == (h.wbgt_lo <= p.summary.threshold_c <= h.wbgt_hi)
+        assert 0.0 <= h.reactive_work_fraction <= 1.0
+        assert h.cycle in {
+            "rest in shade", "work the full hour",
+            "work about 45 minutes, rest 15 in shade",
+            "work about 30 minutes, rest 30 in shade",
+            "work about 15 minutes, rest 45 in shade",
+        }
+    s = p.summary
+    assert s.peak_reactive > 0
+    # the optimiser is never worse than the reactive rule on peak load
+    assert s.peak_plan <= s.peak_reactive + 1e-6
+    assert p.meta.lead_days >= 1
