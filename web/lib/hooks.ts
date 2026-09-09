@@ -137,7 +137,7 @@ export function useDohaPlan(initial: PlanResponse | null): PlanResponse | null {
     // Retry a few times: on a cold free-tier backend the first hit wakes it and
     // the next one lands.
     (async () => {
-      for (let i = 0; i < 4 && !cancelled; i++) {
+      for (let i = 0; i < 3 && !cancelled; i++) {
         try {
           const r = await fetch("/api/plan", {
             method: "POST",
@@ -149,8 +149,10 @@ export function useDohaPlan(initial: PlanResponse | null): PlanResponse | null {
             if (!cancelled && j) setPlan(j);
             return;
           }
+          // 4xx will not fix itself on retry; only a cold/5xx is worth another go
+          if (r.status < 500) return;
         } catch {
-          /* keep trying */
+          /* transport error, keep trying */
         }
         await new Promise((res) => setTimeout(res, 5000 + i * 4000));
       }

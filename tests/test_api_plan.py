@@ -128,3 +128,29 @@ def test_plan_has_band_reactive_and_cycle():
     # the optimiser is never worse than the reactive rule on peak load
     assert s.peak_plan <= s.peak_reactive + 1e-6
     assert p.meta.lead_days >= 1
+
+
+def test_rate_limit_falls_back_to_synthetic(monkeypatch):
+    """A failed live forecast (e.g. an upstream 429) must still yield a plan,
+    labelled honestly, not a 502."""
+    import api.planning as P
+
+    real_fetch = P._fetch
+
+    def flaky(source, glat, glon, date):
+        if source == "mock":
+            return real_fetch(source, glat, glon, date)
+        raise RuntimeError("429 Client Error: Too Many Requests")
+
+    monkeypatch.setattr(P, "_fetch", flaky)
+    P.forecast_cache.clear()
+
+    req = PlanRequest(
+        lat=LAT, lon=LON, date=dt.date.today() + dt.timedelta(days=1),
+        required_work_hours=8, workload_class="moderate",
+        acclimatised=True, tz="Asia/Qatar",
+    )
+    p = build_plan(req, forecast_source="open-meteo")
+    assert len(p.hours) > 0
+    assert p.summary.peak_plan <= p.summary.peak_calendar + 1e-6
+    assert "fallback" in p.meta.forecast_source.lower()

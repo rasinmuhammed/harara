@@ -10,11 +10,15 @@ command-line use.
 from __future__ import annotations
 
 import datetime as dt
+import os
+import time
 
 import pandas as pd
 import requests
 
 BASE_URL = "https://api.open-meteo.com/v1/forecast"
+# A commercial key, if set, moves off the shared anonymous rate-limit pool.
+_KEY_URL = "https://customer-api.open-meteo.com/v1/forecast"
 HOURLY_VARS = [
     "temperature_2m", "relative_humidity_2m", "surface_pressure",
     "wind_speed_10m", "direct_radiation", "shortwave_radiation",
@@ -29,11 +33,25 @@ def fetch_forecast(lat: float, lon: float, start: dt.date, end: dt.date,
         "hourly": ",".join(HOURLY_VARS),
         "timezone": "UTC", "wind_speed_unit": "ms",
     }
-    r = requests.get(BASE_URL, params=params, timeout=timeout)
-    r.raise_for_status()
-    j = r.json()
-    if "error" in j:
-        raise RuntimeError(j.get("reason", "open-meteo forecast error"))
-    df = pd.DataFrame(j["hourly"])
-    df["time"] = pd.to_datetime(df["time"], utc=True)
-    return df
+    key = os.environ.get("OPEN_METEO_API_KEY")
+    url = _KEY_URL if key else BASE_URL
+    if key:
+        params["apikey"] = key
+
+    last: Exception | None = None
+    for attempt in range(2):
+        try:
+            r = requests.get(url, params=params, timeout=timeout)
+            if r.status_code == 429 and attempt == 0:
+                time.sleep(2.0)  # a transient per-minute bucket; try once more
+                continue
+            r.raise_for_status()
+            j = r.json()
+            if "error" in j:
+                raise RuntimeError(j.get("reason", "open-meteo forecast error"))
+            df = pd.DataFrame(j["hourly"])
+            df["time"] = pd.to_datetime(df["time"], utc=True)
+            return df
+        except requests.RequestException as e:
+            last = e
+    raise last if last else RuntimeError("open-meteo forecast failed")

@@ -39,6 +39,12 @@ class TTLCache:
             self._store.popitem(last=False)
         return value
 
+    def peek(self, key: Hashable):
+        """Last stored value for this key regardless of age, or None. Used as a
+        fallback when a fresh fetch fails (e.g. an upstream rate limit)."""
+        hit = self._store.get(key)
+        return hit[1] if hit is not None else None
+
     def clear(self) -> None:
         self._store.clear()
 

@@ -66,18 +66,45 @@ _DRY_HOT_NOTE = (
 )
 
 
+def _snap(x: float) -> float:
+    """Nearest 0.25 degree, the forecast grid. Collapses nearby requests onto
+    one upstream call and one cache entry."""
+    return round(x * 4.0) / 4.0
+
+
+def _fetch(source: str, glat: float, glon: float, date: dt.date):
+    return get_forecast(GetForecastRequest(
+        lat=glat, lon=glon,
+        start_date=date - dt.timedelta(days=1),
+        end_date=date + dt.timedelta(days=1),
+        source=source,
+    ))
+
+
 def _forecast(req: PlanRequest, source: str):
-    key = (source, round(req.lat, 2), round(req.lon, 2), req.date.isoformat())
+    """Returns (forecast, source_actually_used). On an upstream failure such as
+    a rate limit, serve the last good value for this grid cell if we have one,
+    otherwise the deterministic synthetic day, so the demo still answers."""
+    glat, glon = _snap(req.lat), _snap(req.lon)
+    key = (source, glat, glon, req.date.isoformat())
+
+    used = {"source": source}
 
     def produce():
-        return get_forecast(GetForecastRequest(
-            lat=req.lat, lon=req.lon,
-            start_date=req.date - dt.timedelta(days=1),
-            end_date=req.date + dt.timedelta(days=1),
-            source=source,
-        ))
+        try:
+            return _fetch(source, glat, glon, req.date)
+        except Exception:
+            if source == "mock":
+                raise
+            stale = forecast_cache.peek(key)
+            if stale is not None:
+                used["source"] = f"{source}-stale"
+                return stale
+            used["source"] = "mock-fallback"
+            return _fetch("mock", glat, glon, req.date)
 
-    return forecast_cache.get_or_set(key, produce)
+    fc = forecast_cache.get_or_set(key, produce)
+    return fc, used["source"]
 
 
 def _cycle(frac: float) -> str:
@@ -132,8 +159,9 @@ def plan_with_sched(
     lead_days = max(1, (req.date - today).days)
 
     fc = None
+    source_used = forecast_source
     if wbgt_hours is None:
-        fc = _forecast(req, forecast_source)
+        fc, source_used = _forecast(req, forecast_source)
         wb = compute_wbgt(ComputeWbgtRequest(
             hours=fc.hours, lat=req.lat, lon=req.lon))
         wbgt_hours = wb.hours
@@ -220,12 +248,18 @@ def plan_with_sched(
 
     dry_hot = bool(fc is not None and _dry_hot(fc.hours, req.date, req.tz,
                                                wbgt_by_hour))
+    _src_label = {
+        "mock": "synthetic (deterministic mock)",
+        "mock-fallback": "synthetic fallback (live forecast was rate-limited)",
+        "open-meteo": "Open-Meteo forecast API (ERA5-blend NWP)",
+        "open-meteo-stale": "Open-Meteo forecast API (cached, last good run)",
+    }
     meta = PlanMeta(
         model="liljegren-thermofeel / cvar-lp",
-        forecast_source=("synthetic (deterministic mock)"
-                         if forecast_source == "mock"
-                         else "Open-Meteo forecast API (ERA5-blend NWP)"),
-        forecast_run=("synthetic" if forecast_source == "mock"
+        forecast_source=_src_label.get(
+            source_used, "Open-Meteo forecast API (ERA5-blend NWP)"),
+        forecast_run=("synthetic" if source_used.startswith("mock")
+                      else "cached run" if source_used.endswith("stale")
                       else "latest available model run"),
         lead_days=int(lead_days),
         lead_time_note=_LEAD_NOTE,
