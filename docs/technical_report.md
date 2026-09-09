@@ -561,8 +561,46 @@ ungrounded numbers across 67 numeric tokens in generated briefings, with
 the numeric guard catching every injected number; and every rule
 reference resolving. These figures measure the plumbing and the guards,
 not the language model: the mock is a regex stand-in and the source
-documents use canonical phrasing. The harness takes `--model` for a real
-adapter, which is the measurement that matters and is still to be run.
+documents use canonical phrasing.
+
+**Against a real model.** The layer was scored with K2-Horizon
+(`IFM/K2-Horizon-375B-A23B`, temperature 0) driving all four functions.
+Anthropic could not be scored here (SDK and key absent); the harness now
+runs each section independently and records a missing adapter as a
+per-section error rather than failing the run.
+
+Rule extraction, field level over the four documents: banned-hour windows
+P/R 1.0; the stop-work threshold P 1.0 / R 0.67 (K2 extracted the ban and
+the seasonal window from the Qatar Decision 17 text but missed the 32.1 C
+value); seasonal window P 1.0 / R 0.67; workload rest ratios P 0.57 / R
+1.0 (three ratios extracted from the ACGIH table that are not in the gold
+set). Every quote K2 returned was a verbatim substring, so
+citation validity is 1.0 and the store accepted only what it could
+locate. Tool calls: outcome-exact-match 0.94 over the 18 requests, parsed
+field accuracy 1.0, and every ambiguous request returned a clarification
+(none guessed); the clarification named the exactly-right missing fields
+in 0.8 of cases.
+
+Two failure modes matter. First, K2 on the IFM endpoint is not
+reproducible at temperature 0: re-running the same briefing scenario
+gives different prose and a different ungrounded-token count from call to
+call. Second, K2's briefings are chattier than the mock's and carry stray
+numbers (clock times, table indices) at a rate around 0.09 of numeric
+tokens; the numeric guard flags these, so in production many K2 drafts
+would hit the retry-then-refuse path rather than return. What did not
+fail: on every run the guard caught every injected foreign number
+(4 of 4), and the guarded path (`generate_briefing`) either returned a
+briefing with no ungrounded number and every rule reference resolved, or
+refused. No run produced a number that reached a caller without passing
+the guard. The eval's `write_briefing` figures are raw model output,
+measured before the guard on purpose.
+
+One change was made to the guard during this work, reported here rather
+than folded in silently: the numeric guard now strips ISO and MM-DD
+dates, clock times and kebab-case identifiers before scanning, and
+whitelists rule values that came from a `lookup_rule` citation. This took
+the raw ungrounded-token count on K2 briefings from about 85 to about 25;
+no prompt was tuned to the eval.
 
 ## 11. Proposed system
 
