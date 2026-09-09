@@ -132,3 +132,131 @@ rhetorical-question headings, exclamation marks. Plain word over the long one
 ("use" not "utilise"). Every domain term gets one plain sentence with no jargon
 inside it; the `Term` component and `lib/glossary.ts` hold these and are used
 in prose and in the artifact.
+
+## Interactive map (`components/map/SiteMap.tsx`, `lib/mapStyle.ts`)
+
+MapLibre GL JS over OpenFreeMap open vector tiles (`tiles.openfreemap.org`, no
+API key, no sign-in, nothing about the site stored). Vector, not raster. The
+library and its stylesheet are dynamically imported inside an effect, so they
+stay out of the first-paint bundle; `/app` first load is unchanged.
+
+Style JSON is built at runtime from the resolved design tokens
+(`tokensFromCSS`), so the map matches the current theme exactly and restyles on
+theme toggle. It is an instrument, not a tourist map: near-monochrome land,
+thin roads, one cool fill for water, sparse uppercase place labels.
+
+| style slot | token |
+|---|---|
+| land / land alt | `--bg` / `--surface-2` |
+| water | `#132a38` dark, `#dfe8ec` light (fixed, cooler than the neutrals) |
+| minor / major road | `--border` / `--border-strong` |
+| boundary | `--border-strong`, 2 px dash |
+| place label | `--text-secondary` with a `--bg` halo |
+| forecast grid cell | `--accent` at 0.07 fill, `--accent` 1.25 px dashed line, on-map label |
+
+The forecast grid cell is a 0.25 degree square (`forecastCell`, snapped to the
+grid) with the caption "The forecast covers this area, about 25 km across. It is
+not specific to one street or one trench." An inland pin (more than 0.18 deg
+west of Doha) adds one sentence about drier air reading cooler; no number.
+
+Controls: navigation (no compass, rotation disabled), a metric scale bar, a
+coordinate + distance-from-Doha overlay chip, and a "Back to the pin" button
+that appears only when the pin is off-screen. The pin is a draggable teardrop
+with a slow accent pulse; a click drops it with a 380 ms fall. Keyboard: the
+map container is focusable, arrow keys nudge the pin 0.01 deg, Shift+arrow
+0.002 deg; the search box is a combobox with arrow-key results and an
+`aria-live` announcement of each new location. Text search (keyless Nominatim,
+debounced, degrades to nothing) and manual lat/lon entry are both always
+present. Under `prefers-reduced-motion` or `Save-Data` the pulse stops and the
+camera snaps instead of easing.
+
+## Plain-language work types (`lib/worktypes.ts`)
+
+The ACGIH categories (`light` / `moderate` / `heavy` / `very_heavy`) are kept
+unchanged in the request and the solver. Only the display changes: a plain
+label and one example drawn from `src/heat_stress.py`.
+
+| class | label | example shown |
+|---|---|---|
+| light | Light | standing, light hand or arm work, for example inspection or light assembly |
+| moderate | Moderate | steady hand and leg work and walking, for example carrying light loads or plastering |
+| heavy | Heavy | hard sustained effort, for example digging, shovelling, carrying heavy loads, pouring concrete |
+| very_heavy | Very heavy | near maximal effort, for example breaking ground by hand or climbing stairs with a load |
+
+"Used to the heat" toggle: "Has the crew been working in this heat for more
+than two weeks", with one sentence on why it matters (an acclimatised body
+sweats sooner and holds less heat). Never inferred silently; if it is missing
+the assistant asks.
+
+## Chart annotations (`components/artifact/DayChart.tsx`)
+
+Annotations are drawn in place on the plot, never in a legend key:
+
+- "Forecast peak, about HH:MM" sits above the WBGT curve at its maximum.
+- "32.1 C stop-work" labels the threshold rule at the right edge.
+- "Plan rests through the hottest hours" sits over the rest block, in the
+  `stop` colour.
+- "Fixed rule works the crew until here" sits under the x-axis at 16:00, in the
+  compare colour.
+- A thin accent vertical line plus a "now" tick marks the current local time,
+  only when the chart's day is today.
+- Borderline hours (forecast band straddles 32.1) carry a small dot on the
+  state strip; "dot = forecast uncertain here" is the only note for it.
+
+The uncertainty band is the p10-p90 of past forecast error at this lead
+(`api/data/wbgt_residuals.json`), drawn as a faint `--text` ribbon behind the
+curve. The plan itself stays on the point forecast.
+
+### Progressive build (landing "one chart, four reveals")
+
+`DayChart` takes `stage` 1-4. 1: forecast and band only, short viewBox. 2: adds
+the 32.1 rule. 3: adds the fixed-rule bars and its annotation. 4: adds the plan
+bars, the state strip, the live-now marker, the hover readout and the legend.
+The landing renders the same chart four times, once per stage, each in its own
+scroll reveal.
+
+## Headline number pattern
+
+Every artifact leads with one sentence, stated once, largest text in the card:
+"Worst point of the day: heat load X, down from Y under the fixed rule, same N
+hours worked." X and Y are `summary.peak_plan` and `summary.peak_calendar`
+straight from the solver. The same shape is reused on the landing idea section
+and the replay section. No second framing of the same number anywhere in the
+card; the comparison strip below carries the breakdown.
+
+## Methods drawer
+
+Every artifact carries a `<details>` titled "What produced these numbers":
+forecast source, model run, lead days, grid cell, the WBGT method, the solver,
+the lead-time caveat, and the generation timestamp. All of it reads from
+`plan.meta`. A second drawer lists the raw hourly table.
+
+## Shareable link and print
+
+A plan is fully described by its request, so "Copy link" packs
+`{lat, lon, date, hours, workload, acclimatised}` into a base64url token
+(`lib/share.ts`) and writes `/app?q=<token>`. Opening that URL auto-plans those
+exact parameters with a one-line note that it came from a shared link. "Print"
+calls `window.print()`; a `@media print` block in `globals.css` drops the
+header, composer, map and controls, flattens the card, and opens the drawers so
+one clean page of the shift card prints.
+
+## Motion budget
+
+- One shader hero. Everything else is transform / opacity only, <= 400 ms,
+  eased `cubic-bezier(0.22, 1, 0.36, 1)`.
+- Offscreen loops pause (hero frame loop, via IntersectionObserver).
+- Count-ups run once, on first render, and settle on the exact value.
+- The map pin pulse is the only ambient loop; it stops under reduced-motion.
+- `prefers-reduced-motion` and `Save-Data` turn all of it off: no hero canvas,
+  no Lenis, no pin pulse, camera snaps, reveals and count-ups are instant.
+
+## Loading and empty states
+
+- The chat "thinking" indicator is the four real steps in order (read the
+  request, get the forecast, plan the day, write it up), each ticked as it
+  completes.
+- `/app` before the first request shows a real, dimmed Doha-tomorrow artifact
+  labelled as a worked example, so the screen is never blank.
+- The replay section shows a seven-card skeleton while loading and a plain
+  "needs the API" line on failure.
