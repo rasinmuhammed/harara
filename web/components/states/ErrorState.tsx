@@ -37,7 +37,7 @@ export function ErrorState({
       <button
         type="button"
         onClick={onRetry}
-        className="mt-5 rounded bg-accent px-4 py-2.5 text-base font-semibold text-white transition-colors duration-[var(--dur-1)] hover:bg-accent-hover"
+        className="mt-5 rounded bg-accent px-4 py-2.5 text-base font-semibold text-on-accent transition-colors duration-[var(--dur-1)] hover:bg-accent-hover"
       >
         Try again
       </button>

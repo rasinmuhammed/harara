@@ -21,6 +21,7 @@ const config: Config = {
         accent: "var(--accent)",
         "accent-hover": "var(--accent-hover)",
         "accent-weak": "var(--accent-weak)",
+        "on-accent": "var(--on-accent)",
         compare: "var(--compare)",
         "state-work": "var(--state-work)",
         "state-reduced": "var(--state-reduced)",

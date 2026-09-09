@@ -57,7 +57,7 @@ export function HourlyTable({
                 <button
                   type="button"
                   onClick={() => toggle(c.key)}
-                  className="inline-flex items-center gap-1 hover:text-ink"
+                  className="-my-1 inline-flex min-h-[28px] items-center gap-1 py-1 hover:text-ink"
                   aria-label={`Sort by ${c.label}`}
                 >
                   {c.label}

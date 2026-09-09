@@ -46,7 +46,7 @@ export function ClarificationState({
           <button
             type="button"
             onClick={onDismiss}
-            className="mt-1 self-start text-sm font-medium text-accent underline decoration-accent/40"
+            className="mt-1 inline-flex min-h-[28px] items-center self-start text-sm font-medium text-accent underline decoration-accent/40"
           >
             Use the form
           </button>

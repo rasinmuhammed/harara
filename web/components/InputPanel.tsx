@@ -118,20 +118,20 @@ export function InputPanel({
           </span>
         </div>
         <RSlider.Root
-          id={hoursId}
           className="relative flex h-6 w-full touch-none select-none items-center"
           min={1}
           max={14}
           step={1}
           value={[value.workHours]}
           onValueChange={([v]) => set("workHours", v)}
-          aria-label="Effective work-hours to deliver"
         >
           <RSlider.Track className="relative h-1 grow rounded-full bg-surface-sunken">
             <RSlider.Range className="absolute h-full rounded-full bg-accent" />
           </RSlider.Track>
           <RSlider.Thumb
-            className="block h-5 w-5 rounded-full border-2 border-accent bg-surface shadow-card outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            id={hoursId}
+            aria-label="Effective work-hours to deliver"
+            className="block h-6 w-6 rounded-full border-2 border-accent bg-surface shadow-card outline-none focus-visible:ring-2 focus-visible:ring-accent"
           />
         </RSlider.Root>
         <p className="text-sm text-ink-muted">
@@ -187,17 +187,17 @@ export function InputPanel({
         <RSwitch.Root
           checked={value.acclimatised}
           onCheckedChange={(v) => set("acclimatised", v)}
-          className="relative h-6 w-11 shrink-0 rounded-full border border-border bg-surface-sunken outline-none transition-colors duration-[var(--dur-1)] focus-visible:ring-2 focus-visible:ring-accent data-[state=checked]:bg-accent"
+          className="relative h-7 w-12 shrink-0 rounded-full border border-border bg-surface-sunken outline-none transition-colors duration-[var(--dur-1)] focus-visible:ring-2 focus-visible:ring-accent data-[state=checked]:bg-accent"
           aria-label="Heat-acclimatised"
         >
-          <RSwitch.Thumb className="block h-5 w-5 translate-x-[2px] rounded-full bg-surface shadow-card transition-transform duration-[var(--dur-1)] data-[state=checked]:translate-x-[22px]" />
+          <RSwitch.Thumb className="block h-6 w-6 translate-x-[2px] rounded-full bg-surface shadow-card transition-transform duration-[var(--dur-1)] data-[state=checked]:translate-x-[22px]" />
         </RSwitch.Root>
       </div>
 
       <button
         type="submit"
         disabled={busy}
-        className="mt-1 rounded bg-accent px-4 py-3 text-base font-semibold text-white transition-colors duration-[var(--dur-1)] hover:bg-accent-hover disabled:opacity-60"
+        className="mt-1 rounded bg-accent px-4 py-3 text-base font-semibold text-on-accent transition-colors duration-[var(--dur-1)] hover:bg-accent-hover disabled:opacity-60"
       >
         {busy ? "Planning…" : "Plan the day"}
       </button>
