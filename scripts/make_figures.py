@@ -214,10 +214,149 @@ def fig_twin():
     _save(fig, "fig5_twin.png")
 
 
+# ---------------------------------------------------- figs 6-10 (AI weather)
+# These read the aggregates written by scripts/aiwp_humid_heat_study.py
+# (block-bootstrap CIs are expensive; recomputing them here would just
+# repeat that run). Skipped with a note if the CSVs are absent.
+AIWP_COLORS = {"IFS": OKABE["blue"], "AIFS": OKABE["orange"],
+               "GFS": OKABE["vermillion"], "GraphCast": OKABE["green"]}
+
+
+def _aiwp_scores():
+    p = REPO / "data" / "aiwp_scores.csv"
+    return pd.read_csv(p) if p.exists() else None
+
+
+def _line_with_band(ax, sub, color, label):
+    sub = sub.sort_values("lead")
+    ax.plot(sub["lead"], sub["value"], color=color, lw=2, marker="o", ms=4,
+            label=label)
+    if sub["ci_lo"].notna().any():
+        ax.fill_between(sub["lead"], sub["ci_lo"], sub["ci_hi"],
+                        color=color, alpha=0.15, lw=0)
+
+
+def fig_aiwp_missrate():
+    s = _aiwp_scores()
+    if s is None:
+        print("  skip fig6 (data/aiwp_scores.csv absent)", file=sys.stderr)
+        return
+    d = s[(s.track == "wbgt_common") & (s.metric == "miss_rate")]
+    fig, ax = plt.subplots(figsize=(7.0, 3.8))
+    for model in ("IFS", "AIFS", "GFS"):
+        _line_with_band(ax, d[d.model == model], AIWP_COLORS[model], model)
+    ax.set_xlabel("forecast lead (days)")
+    ax.set_ylabel("fraction of true 32.1 °C hours\nforecast below the threshold")
+    ax.set_ylim(0, 0.55)
+    ax.set_title("Missed stop-work hours: WBGT forecasts at Doha\n"
+                 "(common 2025–26 window, warm-season daylight, 95% CI)",
+                 loc="left", fontweight="bold")
+    ax.legend(frameon=False, loc="center right")
+    ax.text(4.0, 0.44, "GFS misses ~40% at every lead", color=OKABE["vermillion"],
+            fontsize=8.5)
+    _save(fig, "fig6_aiwp_missrate.png")
+
+
+def fig_aiwp_bias():
+    s = _aiwp_scores()
+    if s is None:
+        print("  skip fig7", file=sys.stderr)
+        return
+    d = s[(s.track == "wbgt_common") & (s.metric == "bias")]
+    fig, ax = plt.subplots(figsize=(7.0, 3.8))
+    ax.axhspan(-3, 0, color=OKABE["vermillion"], alpha=0.05, lw=0)
+    ax.axhline(0, color=OKABE["ink"], lw=0.8)
+    for model in ("IFS", "AIFS", "GFS"):
+        _line_with_band(ax, d[d.model == model], AIWP_COLORS[model], model)
+    ax.set_xlabel("forecast lead (days)")
+    ax.set_ylabel("WBGT bias (°C, forecast − truth)")
+    ax.set_title("Signed WBGT forecast bias\n"
+                 "(below zero = forecast too cool = the dangerous direction)",
+                 loc="left", fontweight="bold")
+    ax.legend(frameon=False)
+    _save(fig, "fig7_aiwp_bias.png")
+
+
+def fig_aiwp_preheatwave():
+    p = REPO / "data" / "aiwp_preheatwave.csv"
+    if not p.exists():
+        print("  skip fig8", file=sys.stderr)
+        return
+    pw = pd.read_csv(p)
+    d = pw[(pw.track == "wbgt") & (pw.window_days == 5)]
+    fig, ax = plt.subplots(figsize=(7.2, 4.0))
+    ax.axhline(0, color=OKABE["ink"], lw=0.8)
+    for model in ("IFS", "AIFS", "GFS"):
+        sub = d[d.model == model].sort_values("lead")
+        c = AIWP_COLORS[model]
+        ax.plot(sub.lead, sub.bias, color=c, lw=2, marker="o", ms=4,
+                label=f"{model}: 5 d before onset")
+        ax.plot(sub.lead, sub.all_days_bias, color=c, lw=1.2, ls="--", alpha=0.8)
+        if sub.ci_lo.notna().any():
+            ax.fill_between(sub.lead, sub.ci_lo, sub.ci_hi, color=c,
+                            alpha=0.13, lw=0)
+    ax.set_xlabel("forecast lead (days)")
+    ax.set_ylabel("WBGT bias (°C, forecast − truth)")
+    ax.set_title("WBGT bias in the 5 days before a local heat-wave onset\n"
+                 "(solid) versus all warm-season days (dashed)",
+                 loc="left", fontweight="bold")
+    ax.legend(frameon=False, fontsize=8.5)
+    _save(fig, "fig8_aiwp_preheatwave.png")
+
+
+def fig_aiwp_temp_bias():
+    s = _aiwp_scores()
+    if s is None:
+        print("  skip fig9", file=sys.stderr)
+        return
+    d = s[(s.track == "temp_common") & (s.metric == "bias")]
+    fig, ax = plt.subplots(figsize=(7.2, 3.8))
+    ax.axhline(0, color=OKABE["ink"], lw=0.8)
+    for model in ("IFS", "AIFS", "GFS", "GraphCast"):
+        _line_with_band(ax, d[d.model == model], AIWP_COLORS[model], model)
+    ax.set_xlabel("forecast lead (days)")
+    ax.set_ylabel("2 m temperature bias (°C, forecast − truth)")
+    ax.set_title("2 m temperature forecast bias — the cold-bias test\n"
+                 "(AIFS and GFS run cold; GraphCast runs warm here)",
+                 loc="left", fontweight="bold")
+    ax.legend(frameon=False, ncol=2)
+    _save(fig, "fig9_aiwp_temp_bias.png")
+
+
+def fig_aiwp_bands():
+    p = REPO / "data" / "aiwp_band_bias.csv"
+    if not p.exists():
+        print("  skip fig10", file=sys.stderr)
+        return
+    bb = pd.read_csv(p)
+    order = ["<28", "28-30", "30-32", "32-34", ">34"]
+    x = np.arange(len(order))
+    fig, ax = plt.subplots(figsize=(7.4, 3.8))
+    ax.axhline(0, color=OKABE["ink"], lw=0.8)
+    for i, model in enumerate(("IFS", "AIFS", "GFS")):
+        sub = bb[bb.model == model].set_index("band").reindex(order)
+        ax.bar(x + (i - 1) * 0.27, sub["bias"], width=0.27,
+               color=AIWP_COLORS[model], label=model)
+    ax.set_xticks(x)
+    ax.set_xticklabels(order)
+    ax.set_xlabel("observed WBGT band (°C)")
+    ax.set_ylabel("WBGT bias (°C, forecast − truth)")
+    ax.set_title("WBGT bias by observed band, lead 5 d\n"
+                 "(GFS collapses in the hottest band; the stop-work band is "
+                 "≥ 32.1)", loc="left", fontweight="bold")
+    ax.legend(frameon=False)
+    _save(fig, "fig10_aiwp_bands.png")
+
+
 if __name__ == "__main__":
     fig_climatology()
     fig_wind_defect()
     fig_operational_gap()
     fig_scheduler()
     fig_twin()
+    fig_aiwp_missrate()
+    fig_aiwp_bias()
+    fig_aiwp_preheatwave()
+    fig_aiwp_temp_bias()
+    fig_aiwp_bands()
     print("done -> docs/figures/", file=sys.stderr)
