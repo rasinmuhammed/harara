@@ -23,6 +23,7 @@ scratch/
 .cdsapirc
 .env
 .env.*
+!.env.example
 *.key
 *.pem
 
