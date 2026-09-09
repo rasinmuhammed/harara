@@ -327,9 +327,9 @@ Rules, enforced in the component:
 
 Three zones, top to bottom, in `components/app/AppShell.tsx`:
 
-1. **Top bar** — wordmark, a `⌘K` command-menu button, Assumptions, theme
+1. **Top bar**: wordmark, a `Cmd/Ctrl-K` command-menu button, Assumptions, theme
    toggle. `py-2.5`, one border.
-2. **Control bar** (`ControlBar.tsx`) — four value chips, each opening an
+2. **Control bar** (`ControlBar.tsx`): four value chips, each opening an
    in-place popover, never a blocking modal. Each chip shows its current value
    inline so the plan's inputs are always readable without opening anything.
    The chip flashes on change.
@@ -341,7 +341,7 @@ Three zones, top to bottom, in `components/app/AppShell.tsx`:
    | Day | `Today` / `Tomorrow` / `12 Sep` | today / +1 / +3 presets + a date input |
    | Hours | `8 hours` | a `Stepper`, 1 to 12 |
 
-3. **Result canvas** — the artifact (`ArtifactCard embedded`), which hides its
+3. **Result canvas**: the artifact (`ArtifactCard embedded`), which hides its
    own day and what-if rows because the control bar owns those. The app
    auto-plans Doha / tomorrow / moderate / acclimatised / 8 h on load, so there
    is a real result in zero clicks. A `?q=` share link hydrates it instead.
@@ -386,4 +386,4 @@ linked) renders every one of these in its states.
 | ArtifactCard | `artifact/ArtifactCard.tsx` | `embedded` | ready, re-planning (dimmed), error, expanded (full screen) |
 | HeadlineNumber | inside `ArtifactCard` | one sentence, `peak_plan` vs `peak_calendar` | static |
 | HeatField | `visual/HeatField.tsx` | `hero` \| `panel` \| `divider`; `animate` | animating (in view), paused (offscreen), static (reduced / Save-Data) |
-| ContourDivider | `visual/ContourDivider.tsx` | — | pre-view (drawn, held), draw-in on first view |
+| ContourDivider | `visual/ContourDivider.tsx` | no props | pre-view (drawn, held), draw-in on first view |

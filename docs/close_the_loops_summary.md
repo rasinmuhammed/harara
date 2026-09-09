@@ -3,7 +3,7 @@
 Plain-language summary of the work on ledger rows 12c/12d/18 (Loop A),
 16/17 (Loop B), and 20/21 (Loop C).
 
-## Loop A — GEFS backfill, calibration, reliability, stochastic scheduling
+## Loop A: GEFS backfill, calibration, reliability, stochastic scheduling
 
 **Status: in progress.** The 2000-2019 May-September GEFS v12 reforecast
 backfill was started and is running. On the development network path it moves at
@@ -34,7 +34,7 @@ Nothing in the current report conclusions depends on this loop: section 8's
 finding that hedging did not help was made on analog scenarios, and the GEFS run
 tests whether a genuine calibrated ensemble changes that.
 
-## Loop B — external validation of the heat-strain filter on real physiology
+## Loop B: external validation of the heat-strain filter on real physiology
 
 **Status: done. One conclusion changed.**
 
@@ -70,7 +70,7 @@ not, and fixing that is a pilot task. The ledger's "about four times more
 accurate than heart rate alone" line is replaced with the measured real-data
 picture (row 30).
 
-## Loop C — score the agent layer against a real model
+## Loop C: score the agent layer against a real model
 
 **Status: done. The uncommitted work is committed. The safety invariant held.**
 

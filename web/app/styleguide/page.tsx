@@ -81,7 +81,7 @@ export default function Styleguide() {
           </Pane>
         </Section>
 
-        <Section title="Loading — the four pipeline steps">
+        <Section title="Loading state, the four pipeline steps">
           <Pane>
             <div className="flex flex-col gap-4">
               <ThinkingIndicator state="parsing" />

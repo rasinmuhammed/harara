@@ -10,17 +10,17 @@ makes it precise.** Not "the ban misses danger."
   Problem/Idea, hosted OpenFreeMap map styles, layout hydration guard) as one
   scoped commit so the rest sits on a clean base.
 
-## 1. The motif — one shared module
-- `web/lib/heatField.ts` — pure: sample a WBGT curve to N points, normalise to
+## 1. The motif: one shared module
+- `web/lib/heatField.ts`: pure: sample a WBGT curve to N points, normalise to
   0..1, isotherm band geometry, the 32.1 ridge position, ramp-colour lookup
   (reuses `lib/ramp.ts`). No React.
-- `web/components/visual/HeatField.tsx` — one Canvas-2D renderer. Props
+- `web/components/visual/HeatField.tsx`: one Canvas-2D renderer. Props
   `{ curve, variant: "hero" | "divider" | "panel", animate?, className? }`.
   Draws smooth isotherm bands + a faint hot ridge where WBGT crosses 32.1,
   coloured from the WBGT ramp. Always < 8% contrast vs background. Pauses via
   IntersectionObserver when offscreen. Static single paint under
   `prefers-reduced-motion` / `Save-Data`. DPR capped at 1.5.
-- `web/components/visual/HeatFieldSVG.tsx` — the same motif as inline SVG bands,
+- `web/components/visual/HeatFieldSVG.tsx`: the same motif as inline SVG bands,
   for the OG image and favicon (which render in the OG runtime, no canvas).
 - Hero: replace the R3F/`three` shader backdrop with `<HeatField variant="hero">`.
   Same motif, driven by the real Doha curve; drops `three` +
@@ -31,7 +31,7 @@ makes it precise.** Not "the ban misses danger."
 - OG (`app/opengraph-image.tsx`) + favicon (`app/icon.tsx`): regenerate from
   `HeatFieldSVG`, copy updated to the new framing.
 
-## 2. Component set — `web/components/ui/`
+## 2. Component set: `web/components/ui/`
 One of each, light + dark, states default/hover/focus/active/disabled:
 - `Button` (primary | secondary | ghost | danger)
 - `Chip` (the control-bar value chip; static + button variants)
@@ -40,10 +40,10 @@ One of each, light + dark, states default/hover/focus/active/disabled:
 - Re-home the existing artifact card, headline-number block, confirm card,
   clarification card as documented members of the set (no rewrite, just
   catalogue + state polish).
-- `web/app/styleguide/page.tsx` — every component, every state, both themes.
+- `web/app/styleguide/page.tsx`: every component, every state, both themes.
   Not linked from the site. `robots: noindex`.
 
-## 3. /app — three-zone enterprise frame
+## 3. /app: three-zone enterprise frame
 - `web/components/app/AppShell.tsx` replaces the chat-first layout:
   - **Top bar** (slim): wordmark, theme toggle, Assumptions, Method link.
   - **Control bar** (persistent, <= 4 controls, each a value chip opening an
@@ -67,7 +67,7 @@ One of each, light + dark, states default/hover/focus/active/disabled:
   chart (exists), and a Cmd/Ctrl-K command menu (jump to preset location,
   change day, open assumptions, open method).
 
-## 4. DESIGN.md — real spec
+## 4. DESIGN.md: real spec
 Spacing scale (4px), type scale, colour tokens + WBGT ramp hex both themes +
 CVD check (already computed in `lib/ramp.ts`), motion values, the motif rules,
 and a table: every component x its states.
