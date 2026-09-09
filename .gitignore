@@ -29,3 +29,11 @@ scratch/
 
 # Local planning document
 VISION.md
+docs/PROJECT_EXPLAINER.md
+
+# Editor / assistant local state
+.claude/
+.vscode/
+
+# Local scratch artefacts
+chrome_map_screenshot.png
