@@ -121,6 +121,6 @@ backfill accumulates years.
 
 ## Licence
 
-Not yet chosen. Code is intended to be released under a permissive licence.
-Data is subject to the terms of each source (Open-Meteo CC-BY, IEM public
-domain, GEFS reforecast and ERA5 under their respective terms).
+Code is released under the MIT Licence (see `LICENSE`). Input data is subject
+to the terms of each source: Open-Meteo CC BY 4.0, IEM METAR public domain,
+GEFS reforecast and ERA5 under their respective terms.
