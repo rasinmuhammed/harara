@@ -181,6 +181,18 @@ h1, h2, h3, h4 {
 }
 
 /* ------------------------------------------------------------- map */
+.harara-pin-wrap {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  pointer-events: auto;
+}
+.harara-pin-wrap:active {
+  cursor: grabbing;
+}
 .harara-pin {
   position: relative;
   width: 20px;
@@ -190,8 +202,9 @@ h1, h2, h3, h4 {
   background: var(--accent);
   border: 2px solid var(--bg-raised);
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45);
-  cursor: grab;
+  cursor: inherit;
   transition: transform 140ms cubic-bezier(0.22, 1, 0.36, 1), filter 140ms ease;
+  pointer-events: auto;
 }
 .harara-pin::after {
   content: "";

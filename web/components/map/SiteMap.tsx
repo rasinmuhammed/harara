@@ -3,7 +3,7 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef, useState } from "react";
 import { usePrefersReducedMotion, useSaveData, useTheme } from "@/lib/hooks";
-import { buildMapStyle, forecastCell, haversineKm, tokensFromCSS } from "@/lib/mapStyle";
+import { MAP_STYLES, forecastCell, haversineKm, tokensFromCSS } from "@/lib/mapStyle";
 import { LOCATION_PRESETS, DOHA } from "@/lib/types";
 
 type LngLat = { lon: number; lat: number };
@@ -21,7 +21,7 @@ function addCellLayers(map: any, tokens: ReturnType<typeof tokensFromCSS>, v: Ln
       id: "cell-fill",
       type: "fill",
       source: "cell",
-      paint: { "fill-color": tokens.accent, "fill-opacity": 0.07 },
+      paint: { "fill-color": tokens.accent, "fill-opacity": 0.08 },
     });
   }
   if (!map.getLayer("cell-line")) {
@@ -31,8 +31,8 @@ function addCellLayers(map: any, tokens: ReturnType<typeof tokensFromCSS>, v: Ln
       source: "cell",
       paint: {
         "line-color": tokens.accent,
-        "line-width": 1.25,
-        "line-opacity": 0.7,
+        "line-width": 1.5,
+        "line-opacity": 0.8,
         "line-dasharray": [2, 2],
       },
     });
@@ -93,10 +93,12 @@ export function SiteMap({
       try {
         const maplibregl = (await import("maplibre-gl")).default;
         if (cancelled || !boxRef.current) return;
+
         const tokens = tokensFromCSS(document.documentElement, theme);
+        const styleUrl = MAP_STYLES[theme === "light" ? "light" : "dark"];
         const map = new maplibregl.Map({
           container: boxRef.current,
-          style: buildMapStyle(tokens) as any,
+          style: styleUrl,
           center: [valueRef.current.lon, valueRef.current.lat],
           zoom: 9.5,
           attributionControl: false,
@@ -117,15 +119,19 @@ export function SiteMap({
           "bottom-right",
         );
 
-        const el = document.createElement("div");
-        el.className = "harara-pin";
-        const marker = new maplibregl.Marker({ element: el, draggable: true, anchor: "bottom" })
+        const wrap = document.createElement("div");
+        wrap.className = "harara-pin-wrap";
+        const pin = document.createElement("div");
+        pin.className = "harara-pin";
+        wrap.appendChild(pin);
+
+        const marker = new maplibregl.Marker({ element: wrap, draggable: true, anchor: "bottom" })
           .setLngLat([valueRef.current.lon, valueRef.current.lat])
           .addTo(map);
         markerRef.current = marker;
-        marker.on("dragstart", () => el.classList.add("is-dragging"));
+        marker.on("dragstart", () => pin.classList.add("is-dragging"));
         marker.on("dragend", () => {
-          el.classList.remove("is-dragging");
+          pin.classList.remove("is-dragging");
           const p = marker.getLngLat();
           place(p.lat, p.lng);
         });
@@ -133,9 +139,9 @@ export function SiteMap({
         map.on("click", (e: any) => {
           marker.setLngLat(e.lngLat);
           if (!reduced) {
-            el.classList.remove("drop");
-            void el.offsetWidth;
-            el.classList.add("drop");
+            pin.classList.remove("drop");
+            void pin.offsetWidth;
+            pin.classList.add("drop");
           }
           place(e.lngLat.lat, e.lngLat.lng);
         });
@@ -149,13 +155,17 @@ export function SiteMap({
         map.on("moveend", sync);
 
         map.on("load", () => {
+          map.resize(); // StrictMode double-mount can leave a stale 0-size
           map.getCanvas().style.cursor = "crosshair";
           addCellLayers(map, tokens, valueRef.current);
           setStatus("ready");
           sync();
         });
-        map.on("error", () => setStatus("error"));
-      } catch {
+        map.on("error", (e: any) => {
+          console.warn("MapLibre notice:", e?.error?.message || e);
+        });
+      } catch (err) {
+        console.error("Map initialization failed:", err);
         if (!cancelled) setStatus("error");
       }
     })();
@@ -185,8 +195,9 @@ export function SiteMap({
     const map = mapRef.current;
     if (!map || status !== "ready") return;
     const tokens = tokensFromCSS(document.documentElement, theme);
-    map.setStyle(buildMapStyle(tokens) as any);
-    map.once("styledata", () => addCellLayers(map, tokens, valueRef.current));
+    const styleUrl = MAP_STYLES[theme === "light" ? "light" : "dark"];
+    map.setStyle(styleUrl);
+    map.once("style.load", () => addCellLayers(map, tokens, valueRef.current));
   }, [theme, status]);
 
   // keyless Nominatim search, debounced, degrades to nothing
@@ -319,7 +330,7 @@ export function SiteMap({
         aria-label="Map of the site. Arrow keys move the pin, hold Shift for finer steps. Click to place it."
         onKeyDown={onMapKey}
       >
-        <div ref={boxRef} className="absolute inset-0" />
+        <div ref={boxRef} className="absolute inset-0 h-full w-full" />
 
         {status === "ready" && (
           <div className="pointer-events-none absolute left-2 top-2 rounded-md border border-border bg-bg-raised/90 px-2 py-1 mono text-micro text-ink-secondary shadow-1 backdrop-blur-sm">

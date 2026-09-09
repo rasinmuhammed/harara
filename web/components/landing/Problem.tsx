@@ -33,17 +33,17 @@ function MovingHours() {
 const BEATS = [
   {
     h: "Humid heat is harder on the body than the number suggests.",
-    p: "Your body cools by sweating, and sweat only cools when it evaporates, which it barely does when the air is already damp.",
+    p: "The body cools by sweating, and sweat only helps when it evaporates. In humid Gulf air it barely does, so the real physiological load is far higher than air temperature alone implies.",
     D: DryVsHumid,
   },
   {
-    h: "The rule is a fixed clock.",
-    p: "Qatar bans outdoor work from 10:00 to 15:30 in summer, every day, whatever the forecast for that day says.",
+    h: "Fixed windows are a strong foundation.",
+    p: "Qatar's Ministerial Decision 17/2021 was a significant step forward, the first GCC regulation to adopt WBGT, a physiologically grounded heat-stress index, as its legal standard, alongside a fixed midday rest window.",
     D: FixedClock,
   },
   {
-    h: "The dangerous hours move, and many fall outside the ban.",
-    p: "On a check against the published heat-stress tables, about 60 percent of the unsafe hours for heavy work by crews new to the heat land before 10:00, after 15:30, or in April and October.",
+    h: "Data makes that foundation smarter, every day.",
+    p: "The heat risk shifts with the forecast. Harara reads the day's actual conditions and distributes work and rest across the full day, extending protection without reducing output.",
     D: MovingHours,
   },
 ];
@@ -53,9 +53,9 @@ export function Problem() {
     <section className="border-t border-border py-20" aria-labelledby="problem-h">
       <div className="mx-auto max-w-content px-5">
         <Reveal>
-          <p className="eyebrow">The problem</p>
+          <p className="eyebrow">The opportunity</p>
           <h2 id="problem-h" className="mt-2 max-w-prose text-h2 text-ink">
-            A thermometer does not tell you how dangerous the heat is.
+            Regulation sets the boundary. Data makes it precise.
           </h2>
         </Reveal>
         <div className="mt-12 grid gap-8 md:grid-cols-3">

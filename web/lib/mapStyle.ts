@@ -18,6 +18,11 @@ export interface MapTokens {
   accent: Hex;
 }
 
+export const MAP_STYLES = {
+  dark: "https://tiles.openfreemap.org/styles/dark",
+  light: "https://tiles.openfreemap.org/styles/positron",
+} as const;
+
 const SRC = "https://tiles.openfreemap.org/planet";
 const GLYPHS = "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf";
 
@@ -26,7 +31,11 @@ export function buildMapStyle(t: MapTokens) {
     version: 8 as const,
     glyphs: GLYPHS,
     sources: {
-      ofm: { type: "vector" as const, url: SRC },
+      ofm: {
+        type: "vector" as const,
+        url: SRC,
+        attribution: "© OpenFreeMap © OpenStreetMap",
+      },
     },
     layers: [
       { id: "bg", type: "background", paint: { "background-color": t.land } },
