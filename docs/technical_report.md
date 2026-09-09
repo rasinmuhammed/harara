@@ -306,8 +306,14 @@ complete only when all members are present, so a re-run resumes cleanly.
 local working hour and forecast day.
 
 On the network path used for development (about 0.2 MB/s single-connection) the
-full May to September run takes several hours. It runs newest-year first so the
-overlap with the patched-WBGT record (2010-2019) is available soonest.
+full 2000-2019 May to September run takes on the order of 15 hours; it is run
+newest-year first so the overlap with the patched-WBGT record (2010-2019) is
+available soonest, and it is resumable at the (init-day, member) level so it
+survives restarts and picks up where it stopped. At the time of writing the
+backfill has been started and is running; the years that have landed feed the
+calibration and reliability chain below, and `run_all.sh` with
+`GEFS_BACKFILL=1` completes the fetch and refreshes every number in this
+section.
 
 ### 6.2 Radiation timing
 
@@ -344,22 +350,31 @@ peak-WBGT forecast will have a large error (EMOS mean peak minus
 patched-reanalysis peak above the training 90th percentile). It reports PR-AUC
 with a block-bootstrap interval against a spread-decile rule and the base rate.
 
-### 6.4 First results and scope
+### 6.4 Results so far and scope
 
-From the first backfill year (values refresh as more years land; walk-forward
-EMOS needs at least 2): ensemble-mean WBGT RMSE is about 1.3 C at forecast day
-+1, rising to about 1.6 C at the evening lead. For reference (non-paired, the
-archives do not overlap in time) the Open-Meteo blend achieves about 0.8 C.
-Ensemble spread-to-RMSE is about 0.45 to 0.51, so the raw ensemble is
-under-dispersed by roughly a factor of two, as expected for a single 0.25
-degree model over a narrow gulf, and as EMOS is intended to address.
+These figures are from the first three backfill years (2017-2019) and are not
+yet a multi-year result; they refresh as the backfill lands more years, and the
+walk-forward EMOS scores below need enough years for a real leave-one-year-out.
 
-The reliability study's target remains the patched-reanalysis WBGT (its own
-1 C error, larger on dry-transition days, section 5), so it predicts
-GEFS-versus-reanalysis divergence rather than GEFS-versus-observation. Only
-about 10 overlap years exist, roughly 7 scorable, so its interval is wide. It
-is the multi-year homogeneous study the substrate makes possible, with its
-limits stated.
+Ensemble-mean WBGT RMSE is about 1.3 to 1.5 C across forecast days 1 to 3,
+rising to about 1.7 to 1.8 C at the 18:00-local (evening) lead. For reference
+(non-paired, the archives do not overlap in time) the Open-Meteo blend achieves
+about 0.8 to 1.0 C. Ensemble spread-to-RMSE is about 0.46 to 0.51, so the raw
+ensemble is under-dispersed by roughly a factor of two, as expected for a
+single 0.25 degree model over a narrow gulf. EMOS improves CRPS over the raw
+ensemble by about 15 to 17% (CRPSS +0.15 to +0.17) at forecast days 1 to 3 and
+tightens the PIT outer-decile mass toward nominal, but with only one scorable
+year so far the block-bootstrap intervals are not yet informative. May is
+data-thin and its EMOS cells are pooled to the neighbouring months and then to
+a lead-only fit; those cells are flagged in `data/gefs_emos.json`.
+
+The reliability study's target is the patched-reanalysis WBGT (its own 1 C
+error, larger on dry-transition days, section 5), so it predicts
+GEFS-versus-reanalysis divergence rather than GEFS-versus-observation. The
+GEFS-times-patched-WBGT overlap is at most 10 years (2010-2019), roughly 7
+scorable once the backfill is complete, so its interval will be wide; until
+then it is not run for a score. It is the multi-year homogeneous study the
+substrate makes possible, with its limits stated.
 
 ## 7. Operational gap analysis
 
@@ -409,12 +424,19 @@ The optimiser reduces mean peak strain by 14% relative to the calendar rule
 to 20%, at no productivity cost, holding at 24, 48 and 72 hour leads.
 
 The stochastic (CVaR) optimiser is 3% worse than the deterministic
-point-forecast optimiser (interval [-0.25, -0.11]): the forecast is accurate
-enough that hedging over-conservatises. The stochastic formulation is expected
-to be worthwhile only at longer leads with a genuine ensemble, under a hard
-chance constraint on an individual crossing a core-temperature limit, or with
-intraday re-planning. The `--uncertainty gefs` run tests the first of these as
-the GEFS backfill accumulates years.
+point-forecast optimiser on analog scenarios (interval [-0.25, -0.11]): the
+forecast is accurate enough that hedging over-conservatises. The stochastic
+formulation is expected to be worthwhile only at longer leads with a genuine
+ensemble, under a hard chance constraint on an individual crossing a
+core-temperature limit, or with intraday re-planning.
+
+`scripts/scheduler_study.py --uncertainty gefs` re-runs the comparison with the
+calibrated GEFS ensemble in place of analog scenarios, to test whether a real
+lead-growing spread changes that conclusion. It is wired and runs on the years
+present, but a paired verdict with a usable interval needs the backfill to
+reach the full 2010-2019 overlap; on the three years available so far it is not
+scored. This is the one part of the report still waiting on the backfill; the
+analog-scenario finding above stands on its own.
 
 ## 9. Individual heat-strain estimation (proof of concept)
 
