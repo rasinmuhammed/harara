@@ -88,6 +88,30 @@
   color-scheme: light;
 }
 
+/* Scoped theme panes (the styleguide renders both side by side). Same token
+   values as the document-level themes, redefined on a container so its
+   subtree renders in that theme regardless of the page setting. */
+.theme-dark {
+  --bg: #0b0b0c; --bg-raised: #141416; --surface: #161719; --surface-2: #1d1e21;
+  --border: #26272b; --border-strong: #383a3f;
+  --text: #ececee; --text-secondary: #a1a1a8; --text-muted: #8b8c93;
+  --accent: #e9963e; --accent-hover: #f2a856; --accent-ink: #1a1206;
+  --accent-weak: rgba(233, 150, 62, 0.14);
+  --state-work: #4fb39a; --state-reduced: #dda63c; --state-stop: #d66074; --compare: #7c8b98;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 40px -24px rgba(0, 0, 0, 0.55);
+  color-scheme: dark;
+}
+.theme-light {
+  --bg: #fbfaf8; --bg-raised: #ffffff; --surface: #ffffff; --surface-2: #f4f2ee;
+  --border: #e6e3dc; --border-strong: #d3cec3;
+  --text: #17181a; --text-secondary: #55565c; --text-muted: #63646b;
+  --accent: #b4650e; --accent-hover: #9c5709; --accent-ink: #ffffff;
+  --accent-weak: rgba(180, 101, 14, 0.12);
+  --state-work: #2e7d6b; --state-reduced: #b67a12; --state-stop: #a83246; --compare: #6e7e8c;
+  --shadow-1: 0 1px 2px rgba(20, 15, 8, 0.06), 0 16px 40px -24px rgba(20, 15, 8, 0.16);
+  color-scheme: light;
+}
+
 /* =============================================================== base */
 * {
   border-color: var(--border);
