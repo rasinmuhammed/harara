@@ -3,7 +3,7 @@ import { Reveal } from "./Reveal";
 
 export function Close() {
   return (
-    <section className="border-t border-border py-24" aria-labelledby="close-h">
+    <section className="py-24" aria-labelledby="close-h">
       <div className="mx-auto max-w-content px-5">
         <Reveal>
           <h2 id="close-h" className="text-h2 text-ink">Try it on a real day.</h2>

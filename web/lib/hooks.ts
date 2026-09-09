@@ -76,6 +76,23 @@ export function useTheme(): ["light" | "dark", () => void] {
   return [theme, toggle];
 }
 
+/** True after first paint plus one idle callback, so heavy-but-non-critical
+ *  UI (the motif canvas) stays off the critical path. */
+export function useDeferredMount(): boolean {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    const go = () => !cancelled && setReady(true);
+    const idle = (window as any).requestIdleCallback || ((f: () => void) => setTimeout(f, 200));
+    const t = requestAnimationFrame(() => idle(go));
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(t);
+    };
+  }, []);
+  return ready;
+}
+
 export function useInView<T extends Element>(
   opts: IntersectionObserverInit = { rootMargin: "0px 0px -12% 0px" },
 ): [React.RefObject<T>, boolean] {

@@ -1,0 +1,6 @@
+# Modern evergreen browsers only. Skips legacy SWC transforms (~11 KiB).
+Chrome >= 110
+Edge >= 110
+Firefox >= 110
+Safari >= 16
+iOS >= 16

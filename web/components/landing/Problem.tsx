@@ -50,7 +50,7 @@ const BEATS = [
 
 export function Problem() {
   return (
-    <section className="border-t border-border py-20" aria-labelledby="problem-h">
+    <section className="py-20" aria-labelledby="problem-h">
       <div className="mx-auto max-w-content px-5">
         <Reveal>
           <p className="eyebrow">The opportunity</p>

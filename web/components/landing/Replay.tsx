@@ -105,7 +105,7 @@ export function Replay() {
   }, []);
 
   return (
-    <section className="border-t border-border py-20" aria-labelledby="replay-h">
+    <section className="py-20" aria-labelledby="replay-h">
       <div className="mx-auto max-w-content px-5">
         <Reveal>
           <p className="eyebrow">Replay</p>

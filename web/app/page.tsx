@@ -9,6 +9,7 @@ import { Replay } from "@/components/landing/Replay";
 import { HowItWorks } from "@/components/landing/HowItWorks";
 import { Evidence } from "@/components/landing/Evidence";
 import { Close } from "@/components/landing/Close";
+import { ContourDivider } from "@/components/visual/ContourDivider";
 
 export default async function Page() {
   const plan = await getDohaPlan();
@@ -18,11 +19,14 @@ export default async function Page() {
       <Nav />
       <main id="main">
         <Hero plan={plan} />
+        <ContourDivider className="mx-auto max-w-content px-5 pt-10" />
         <Problem />
         <Idea plan={plan} />
+        <ContourDivider className="mx-auto max-w-content px-5 pt-6" />
         <Replay />
         <HowItWorks />
         <Evidence />
+        <ContourDivider className="mx-auto max-w-content px-5 pt-6" />
         <Close />
       </main>
       <Footer />
