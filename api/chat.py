@@ -103,7 +103,16 @@ def chat_stream(
     context = context or {}
     today = (dt.date.fromisoformat(context["today"])
              if context.get("today") else dt.date.today())
-    llm = get_llm(_LLM_NAME)
+    # A real model may be unavailable (missing key, import error). Fall back to
+    # the deterministic mock rather than failing the request.
+    try:
+        llm = get_llm(_LLM_NAME)
+        llm_name = _LLM_NAME
+    except Exception:
+        llm = get_llm("mock")
+        llm_name = "mock"
+
+    _mock = get_llm("mock")
 
     # A confirmed "here is what I have" card sends the structured intent back;
     # skip parsing and go straight to the plan.
@@ -126,13 +135,22 @@ def chat_stream(
             return
 
         yield _sse({"type": "status", "state": "parsing"})
-        parsed = parse_scheduling_request(text, today=today, llm=llm)
+        # A real model transport failure here degrades to the deterministic
+        # parser, which still refuses to guess a safety-relevant field.
+        try:
+            parsed = parse_scheduling_request(text, today=today, llm=llm)
+        except Exception:
+            parsed = parse_scheduling_request(text, today=today, llm=_mock)
 
         if isinstance(parsed, ClarificationNeeded):
             prev = _prev_user(messages)
             if prev:
-                retry = parse_scheduling_request(
-                    f"{prev}\n{text}", today=today, llm=llm)
+                try:
+                    retry = parse_scheduling_request(
+                        f"{prev}\n{text}", today=today, llm=llm)
+                except Exception:
+                    retry = parse_scheduling_request(
+                        f"{prev}\n{text}", today=today, llm=_mock)
                 if isinstance(retry, ParsedRequest):
                     parsed = retry
             if isinstance(parsed, ClarificationNeeded):
@@ -158,13 +176,16 @@ def chat_stream(
         return
 
     yield _sse({"type": "status", "state": "writing"})
-    if _LLM_NAME == "mock":
+    if llm_name == "mock":
         explanation = _plain_summary(plan, location_name)
     else:
+        # UngroundedBriefing means the guard caught a bad number; any other
+        # exception is a transport or endpoint failure. Both degrade to the
+        # deterministic summary so the user always gets an explained plan.
         try:
             explanation = generate_briefing(
                 sched, location_name=location_name, llm=llm).text
-        except UngroundedBriefing:
+        except Exception:
             explanation = _plain_summary(plan, location_name)
 
     for word in explanation.split():

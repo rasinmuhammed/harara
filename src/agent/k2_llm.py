@@ -180,8 +180,8 @@ class K2LLM(LLM):
     name = "k2"
 
     def __init__(self, *, base_url: str | None = None, model: str | None = None,
-                 api_key: str | None = None, timeout: float = 180.0,
-                 max_retries: int = 3):
+                 api_key: str | None = None, timeout: float | None = None,
+                 max_retries: int | None = None):
         _load_env_file()
         self.base_url = (base_url or os.environ.get("IFM_BASE_URL")
                          or DEFAULT_BASE_URL).rstrip("/")
@@ -189,8 +189,12 @@ class K2LLM(LLM):
         self.api_key = api_key or os.environ.get("IFM_API_KEY")
         if not self.api_key:
             raise RuntimeError("IFM_API_KEY not set (env or .env)")
-        self.timeout = timeout
-        self.max_retries = max_retries
+        # Interactive defaults: keep a slow or down endpoint from hanging a
+        # request. Override with IFM_TIMEOUT / IFM_MAX_RETRIES.
+        self.timeout = (timeout if timeout is not None
+                        else float(os.environ.get("IFM_TIMEOUT", "30")))
+        self.max_retries = (max_retries if max_retries is not None
+                            else int(os.environ.get("IFM_MAX_RETRIES", "1")))
 
     # -- transport ----------------------------------------------------
     def _chat(self, system: str, user: str, *, max_tokens: int) -> str:
@@ -213,7 +217,8 @@ class K2LLM(LLM):
                 return (msg.get("content") or "").strip()
             except (requests.RequestException, KeyError, ValueError) as e:
                 last = e
-                time.sleep(2 ** attempt)
+                if attempt < self.max_retries - 1:
+                    time.sleep(2 ** attempt)
         raise RuntimeError(f"IFM request failed after {self.max_retries} "
                            f"tries: {last}")
 
