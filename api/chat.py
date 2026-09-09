@@ -60,20 +60,28 @@ def _intent_to_request(intent, tz_default: str = "Asia/Qatar") -> PlanRequest:
     )
 
 
-def _fallback_sentences(plan, location_name: str) -> str:
+def _plain_summary(plan, location_name: str) -> str:
+    """A plain-language read of the plan, every figure taken from the API
+    summary. Used offline (mock model), and as the fallback if a real
+    model's text cannot be grounded."""
     s = plan.summary
     m = plan.meta
     date = plan.meta.date.isoformat()
     parts = [
         f"For {location_name} on {date}, the plan delivers "
-        f"{s.work_hours_delivered_plan} of {s.work_hours_delivered_plan} "
-        f"work-hours.",
-        f"The worst retained heat load is {s.peak_plan} under the plan and "
-        f"{s.peak_calendar} under the fixed 10:00 to 15:30 ban, for the same "
-        f"hours worked.",
+        f"{s.work_hours_delivered_plan:g} work-hours, the same as the fixed "
+        f"10:00 to 15:30 calendar ban.",
+        f"It keeps the worst retained heat load at {s.peak_plan:.2f}, against "
+        f"{s.peak_calendar:.2f} under the ban, which is "
+        f"{s.pct_peak_reduction:.0f} percent lower.",
+        f"The p90 tail is {s.tail_plan:.2f}, against {s.tail_calendar:.2f}.",
     ]
     if s.stop_hours_plan:
-        parts.append(f"{s.stop_hours_plan} hours are at rest.")
+        parts.append(f"{s.stop_hours_plan} hours are set to rest through the "
+                     f"forecast peak.")
+    if s.work_shortfall_plan > 0:
+        parts.append(f"{s.work_shortfall_plan} of the requested work-hours do "
+                     f"not fit the working window today.")
     parts.append(f"Forecast source: {m.forecast_source}.")
     return " ".join(parts)
 
@@ -129,11 +137,14 @@ def chat_stream(
         return
 
     yield _sse({"type": "status", "state": "writing"})
-    try:
-        explanation = generate_briefing(
-            sched, location_name=location_name, llm=llm).text
-    except UngroundedBriefing:
-        explanation = _fallback_sentences(plan, location_name)
+    if _LLM_NAME == "mock":
+        explanation = _plain_summary(plan, location_name)
+    else:
+        try:
+            explanation = generate_briefing(
+                sched, location_name=location_name, llm=llm).text
+        except UngroundedBriefing:
+            explanation = _plain_summary(plan, location_name)
 
     for word in explanation.split():
         yield _sse({"type": "text", "delta": word + " "})
