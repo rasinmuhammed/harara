@@ -19,7 +19,8 @@ export async function POST(req: NextRequest) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
       cache: "no-store",
-      signal: AbortSignal.timeout(20_000),
+      // Render free tier can cold-start for ~30-60s; allow for it.
+      signal: AbortSignal.timeout(75_000),
     });
     const data = await up.json().catch(() => null);
     if (!up.ok) {
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(data);
   } catch {
     return NextResponse.json(
-      { error: "The forecast service did not respond." },
+      { error: "The forecast service did not respond. It may still be waking up." },
       { status: 502 },
     );
   }

@@ -14,7 +14,7 @@ export async function GET(_req: NextRequest, { params }: { params: { slug: strin
   try {
     const up = await fetch(`${API_BASE}/api/replay/${slug}`, {
       cache: "no-store",
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(60_000),
     });
     const data = await up.json().catch(() => null);
     if (!up.ok) {

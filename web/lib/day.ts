@@ -22,6 +22,9 @@ export async function getDohaPlan(): Promise<PlanResponse | null> {
         acclimatised: true,
       }),
       next: { revalidate: 1800 },
+      // Keep SSR fast. If the free-tier backend is cold, render without the
+      // live example; the client hook retries once it has warmed.
+      signal: AbortSignal.timeout(8_000),
     });
     if (!r.ok) return null;
     return (await r.json()) as PlanResponse;

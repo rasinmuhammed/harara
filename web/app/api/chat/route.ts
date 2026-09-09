@@ -14,12 +14,14 @@ export async function POST(req: NextRequest) {
     headers: { "Content-Type": "application/json" },
     body,
     cache: "no-store",
-    // no timeout: the stream is long-lived
+    // Allow for a Render free-tier cold start on the connect; once the stream
+    // is flowing it is not bounded by this.
+    signal: AbortSignal.timeout(90_000),
   }).catch(() => null);
 
   if (!up) {
     return new Response(
-      `data: ${JSON.stringify({ type: "error", message: "The assistant is offline. Try again in a moment." })}\n\n` +
+      `data: ${JSON.stringify({ type: "error", message: "The assistant did not respond. It may still be waking up, give it a moment and try again." })}\n\n` +
         `data: ${JSON.stringify({ type: "done" })}\n\n`,
       { status: 200, headers: { "Content-Type": "text/event-stream" } },
     );

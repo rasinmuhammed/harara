@@ -10,11 +10,13 @@ import { HowItWorks } from "@/components/landing/HowItWorks";
 import { Evidence } from "@/components/landing/Evidence";
 import { Close } from "@/components/landing/Close";
 import { ContourDivider } from "@/components/visual/ContourDivider";
+import { Warm } from "@/components/Warm";
 
 export default async function Page() {
   const plan = await getDohaPlan();
   return (
     <>
+      <Warm />
       <SmoothScroll />
       <Nav />
       <main id="main">

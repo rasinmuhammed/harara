@@ -123,23 +123,41 @@ export function useDohaPlan(initial: PlanResponse | null): PlanResponse | null {
   const [plan, setPlan] = useState<PlanResponse | null>(initial);
   useEffect(() => {
     if (plan) return;
+    let cancelled = false;
     const d = new Date();
     d.setUTCDate(d.getUTCDate() + 1);
-    fetch("/api/plan", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        lat: DOHA.lat,
-        lon: DOHA.lon,
-        date: d.toISOString().slice(0, 10),
-        required_work_hours: 8,
-        workload_class: "moderate",
-        acclimatised: true,
-      }),
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => j && setPlan(j))
-      .catch(() => {});
+    const body = JSON.stringify({
+      lat: DOHA.lat,
+      lon: DOHA.lon,
+      date: d.toISOString().slice(0, 10),
+      required_work_hours: 8,
+      workload_class: "moderate",
+      acclimatised: true,
+    });
+    // Retry a few times: on a cold free-tier backend the first hit wakes it and
+    // the next one lands.
+    (async () => {
+      for (let i = 0; i < 4 && !cancelled; i++) {
+        try {
+          const r = await fetch("/api/plan", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body,
+          });
+          if (r.ok) {
+            const j = await r.json();
+            if (!cancelled && j) setPlan(j);
+            return;
+          }
+        } catch {
+          /* keep trying */
+        }
+        await new Promise((res) => setTimeout(res, 5000 + i * 4000));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [plan]);
   return plan;
 }

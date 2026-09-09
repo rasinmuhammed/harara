@@ -9,6 +9,8 @@ import { isoPlusDays } from "@/lib/format";
 import { decodeShare } from "@/lib/share";
 import dynamic from "next/dynamic";
 import { useDeferredMount, usePrefersReducedMotion, useTheme } from "@/lib/hooks";
+import { warmBackend } from "@/lib/warm";
+import { BackendNotice } from "@/components/BackendNotice";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 const HeatField = dynamic(
@@ -47,6 +49,7 @@ export function AppShell() {
   const [locName, setLocName] = useState("Doha");
   const [plan, setPlan] = useState<PlanResponse | null>(null);
   const [phase, setPhase] = useState<"planning" | "ready" | "error">("planning");
+  const [waking, setWaking] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [flash, setFlash] = useState<Partial<Record<FlashKey, boolean>>>({});
 
@@ -77,15 +80,19 @@ export function AppShell() {
       setPhase("planning");
       setErr(null);
       try {
-        const p = await fetchPlan(next as any);
+        const p = await fetchPlan(next as any, {
+          onSlow: () => id === runId.current && setWaking(true),
+        });
         if (id === runId.current) {
           setPlan(p);
           setPhase("ready");
+          setWaking(false);
         }
       } catch (e) {
         if (id === runId.current) {
           setErr((e as Error).message);
           setPhase("error");
+          setWaking(false);
         }
       }
     },
@@ -94,19 +101,18 @@ export function AppShell() {
 
   // first paint: a shared link, or the default plan in zero clicks
   useEffect(() => {
+    warmBackend();
+    const slow = () => setWaking(true);
     const token = new URLSearchParams(window.location.search).get("q");
     const shared = token ? decodeShare(token) : null;
+    const body = shared ?? DEFAULT_REQ;
     if (shared) {
       setReq((r) => ({ ...r, ...shared }));
       setLocName(shared.lat === DOHA.lat && shared.lon === DOHA.lon ? "Doha" : "Custom site");
-      fetchPlan(shared)
-        .then((p) => { setPlan(p); setPhase("ready"); })
-        .catch((e) => { setErr((e as Error).message); setPhase("error"); });
-    } else {
-      fetchPlan(DEFAULT_REQ)
-        .then((p) => { setPlan(p); setPhase("ready"); })
-        .catch((e) => { setErr((e as Error).message); setPhase("error"); });
     }
+    fetchPlan(body, { onSlow: slow })
+      .then((p) => { setPlan(p); setPhase("ready"); setWaking(false); })
+      .catch((e) => { setErr((e as Error).message); setPhase("error"); setWaking(false); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -232,6 +238,8 @@ export function AppShell() {
         </div>
       </header>
 
+      <BackendNotice />
+
       {/* zone 2: persistent control bar */}
       <ControlBar
         req={req}
@@ -247,7 +255,7 @@ export function AppShell() {
       {/* zone 3: result canvas */}
       <main id="main" className="flex-1 overflow-y-auto px-4 py-6">
         <div className="mx-auto max-w-3xl">
-          {phase === "planning" && !plan && <PlanningState theme={theme} />}
+          {phase === "planning" && !plan && <PlanningState theme={theme} waking={waking} />}
           {phase === "error" && (
             <ErrorState message={err} onRetry={() => replan({})} />
           )}
@@ -300,7 +308,7 @@ export function AppShell() {
   );
 }
 
-function PlanningState({ theme }: { theme: "light" | "dark" }) {
+function PlanningState({ theme, waking }: { theme: "light" | "dark"; waking?: boolean }) {
   const showField = useDeferredMount();
   return (
     <div className="relative overflow-hidden rounded-xl border border-border-strong bg-bg-raised p-5 shadow-1">
@@ -310,9 +318,13 @@ function PlanningState({ theme }: { theme: "light" | "dark" }) {
         </div>
       )}
       <div className="relative">
-        <p className="text-h4 text-ink">Building the plan</p>
+        <p className="text-h4 text-ink">
+          {waking ? "Waking the demo server" : "Building the plan"}
+        </p>
         <p className="mt-1 text-sm text-ink-secondary">
-          Every number comes from the planner, not the language model.
+          {waking
+            ? "It runs on a free tier and spins down when idle. This first request can take up to a minute, then it is quick."
+            : "Every number comes from the planner, not the language model."}
         </p>
         <div className="mt-4">
           <ThinkingIndicator state="forecasting" />
