@@ -237,6 +237,10 @@ def plan_with_sched(
         date=req.date,
         location={"lat": round(fc_lat, 4), "lon": round(fc_lon, 4),
                   "grid_note": "nearest forecast grid cell, about 25 km across"},
+        request={"lat": req.lat, "lon": req.lon, "date": req.date.isoformat(),
+                 "required_work_hours": req.required_work_hours,
+                 "workload_class": req.workload_class,
+                 "acclimatised": req.acclimatised, "tz": req.tz},
         attribution="Weather data by Open-Meteo.com, CC BY 4.0",
     )
     return PlanResponse(hours=hours, summary=summary, meta=meta), sched

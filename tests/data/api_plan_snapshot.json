@@ -254,6 +254,15 @@
       "lon": 51.531
     },
     "model": "liljegren-thermofeel / cvar-lp",
+    "request": {
+      "acclimatised": true,
+      "date": "2026-07-15",
+      "lat": 25.2854,
+      "lon": 51.531,
+      "required_work_hours": 8.0,
+      "tz": "Asia/Qatar",
+      "workload_class": "moderate"
+    },
     "uncertainty_note": "The band on each hour is the p10 to p90 of past forecast error at this lead. Where it crosses 32.1 C the hour is borderline.",
     "wide_band": false
   },

@@ -77,6 +77,7 @@ class PlanMeta(BaseModel):
     generated_at: dt.datetime
     date: dt.date
     location: dict
+    request: dict
     attribution: str
 
 
