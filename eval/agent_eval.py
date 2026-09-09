@@ -295,13 +295,24 @@ def eval_groundedness(model: str) -> dict:
                             crew_size=10),
             constraints=constraints, wbgt_hours=_wbgt_day("hot"), seed=SEED))
 
-        brief = generate_briefing(sched, location_name="eval",
-                                  rule_records=applied, llm=llm)
-        from src.agent.brief import rule_guard
+        from src.agent.brief import UngroundedBriefing, rule_guard
+        try:
+            brief = generate_briefing(sched, location_name="eval",
+                                      rule_records=applied, llm=llm)
+        except UngroundedBriefing as e:
+            # The guard refused every draft. That is the safety property
+            # working, not a harness error -- record it as a result.
+            return {
+                "rules_applied": constraints.rule_ids,
+                "briefing_generated": False,
+                "guard_rejection": str(e),
+                "unresolved_references": None,
+            }
         unresolved = rule_guard(brief.text, applied)
 
     return {
         "rules_applied": constraints.rule_ids,
+        "briefing_generated": True,
         "briefing_rules_ok": brief.rules_ok,
         "unresolved_references": unresolved,
     }
@@ -316,13 +327,16 @@ def main() -> None:
                     help="exit non-zero if a hard target is missed")
     args = ap.parse_args()
 
-    report = {
-        "model": args.model,
-        "rule_extraction": eval_rule_extraction(args.model),
-        "tool_calls": eval_tool_calls(args.model),
-        "briefings": eval_briefings(args.model),
-        "groundedness": eval_groundedness(args.model),
-    }
+    report = {"model": args.model}
+    for name, fn in (("rule_extraction", eval_rule_extraction),
+                     ("tool_calls", eval_tool_calls),
+                     ("briefings", eval_briefings),
+                     ("groundedness", eval_groundedness)):
+        try:
+            report[name] = fn(args.model)
+        except Exception as e:                       # noqa: BLE001
+            report[name] = {"error": f"{type(e).__name__}: {e}"}
+            print(f"  [{name} failed: {type(e).__name__}: {e}]", file=sys.stderr)
 
     re_ = report["rule_extraction"]
     tc = report["tool_calls"]
@@ -331,41 +345,56 @@ def main() -> None:
 
     print(f"\nagent eval  (model = {args.model}, seed = {SEED})")
     print("=" * 60)
-    print("rule extraction, field-level:")
-    for f, s in re_["per_field"].items():
-        print(f"  {f:24s} P={s['precision']:.3f}  R={s['recall']:.3f}  "
-              f"F1={s['f1']:.3f}  (tp{s['tp']} fp{s['fp']} fn{s['fn']})")
-    print(f"  citation validity        {re_['citation_validity']:.3f}  "
-          f"({re_['citations_checked']} checked)")
+    if "error" in re_:
+        print(f"rule extraction: {re_['error']}")
+    else:
+        print("rule extraction, field-level:")
+        for f, s in re_["per_field"].items():
+            print(f"  {f:24s} P={s['precision']:.3f}  R={s['recall']:.3f}  "
+                  f"F1={s['f1']:.3f}  (tp{s['tp']} fp{s['fp']} fn{s['fn']})")
+        print(f"  citation validity        {re_['citation_validity']:.3f}  "
+              f"({re_['citations_checked']} checked)")
     print("\ntool calls:")
-    print(f"  outcome exact match      {tc['outcome_exact_match']:.3f}  "
-          f"(n={tc['n']})")
-    print(f"  parsed field accuracy    {tc['parsed_field_accuracy']:.3f}")
-    print(f"  ambiguous asked back     {tc['ambiguous_asked_back']:.3f}")
-    print(f"  clarification fields     {tc['clarification_field_exact']:.3f}")
+    if "error" in tc:
+        print(f"  {tc['error']}")
+    else:
+        print(f"  outcome exact match      {tc['outcome_exact_match']:.3f}  "
+              f"(n={tc['n']})")
+        print(f"  parsed field accuracy    {tc['parsed_field_accuracy']:.3f}")
+        print(f"  ambiguous asked back     {tc['ambiguous_asked_back']:.3f}")
+        print(f"  clarification fields     {tc['clarification_field_exact']:.3f}")
     print("\nbriefings:")
-    print(f"  numbers checked          {br['numbers_checked']}")
-    print(f"  ungrounded numbers       {br['ungrounded_numbers']}")
-    print(f"  hallucination rate       {br['hallucination_rate']:.4f}")
-    print(f"  guard recall (injected)  {br['guard_recall']:.3f}  "
-          f"({br['injected_cases']} cases)")
+    if "error" in br:
+        print(f"  {br['error']}")
+    else:
+        print(f"  numbers checked          {br['numbers_checked']}")
+        print(f"  ungrounded numbers       {br['ungrounded_numbers']}")
+        print(f"  hallucination rate       {br['hallucination_rate']:.4f}")
+        print(f"  guard recall (injected)  {br['guard_recall']:.3f}  "
+              f"({br['injected_cases']} cases)")
+        for x in br.get("failures", []):
+            print(f"    failure: {x}")
     print("\ngroundedness:")
-    print(f"  rules applied            {gr['rules_applied']}")
-    print(f"  unresolved references    {gr['unresolved_references']}")
-    if br["failures"]:
-        print("\nfailures:")
-        for x in br["failures"]:
-            print(f"  {x}")
+    if "error" in gr:
+        print(f"  {gr['error']}")
+    elif not gr.get("briefing_generated", True):
+        print(f"  rules applied            {gr['rules_applied']}")
+        print(f"  briefing generated       no -- guard refused every draft")
+        print(f"  guard rejection          {gr['guard_rejection'][:300]}")
+    else:
+        print(f"  rules applied            {gr['rules_applied']}")
+        print(f"  unresolved references    {gr['unresolved_references']}")
 
     if args.json:
+        args.json.parent.mkdir(parents=True, exist_ok=True)
         args.json.write_text(json.dumps(report, indent=2))
         print(f"\nwrote {args.json}")
 
     if args.strict:
-        ok = (br["ungrounded_numbers"] == 0
-              and gr["unresolved_references"] == []
-              and br["guard_recall"] == 1.0
-              and tc["ambiguous_asked_back"] == 1.0)
+        ok = (isinstance(br, dict) and br.get("ungrounded_numbers") == 0
+              and gr.get("unresolved_references") in ([], None)
+              and br.get("guard_recall") == 1.0
+              and tc.get("ambiguous_asked_back") == 1.0)
         sys.exit(0 if ok else 1)
 
 

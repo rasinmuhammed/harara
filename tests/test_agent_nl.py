@@ -123,6 +123,63 @@ def test_generate_briefing_rejects_hallucinated_number():
         generate_briefing(s, location_name="Lusail", llm=Liar())
 
 
+def _rule_record(rule_id="qatar-md-17-2021"):
+    from src.agent.schemas import (
+        Citation, HourWindowWithCitation, RestRatioWithCitation, RuleRecord,
+        RuleConstraintsExtracted, RuleExtractionMeta, RuleSource,
+        ValueWithCitation,
+    )
+    cit = Citation(span=(0, 4), quote="stub")
+    return RuleRecord(
+        rule_id=rule_id, version=1, title="t", jurisdiction="QA",
+        source=RuleSource(type="text", path="x", sha256="0" * 64,
+                          retrieved_utc=dt.datetime(2026, 1, 1)),
+        extraction=RuleExtractionMeta(model="mock", prompt_version="1",
+                                      at_utc=dt.datetime(2026, 1, 1)),
+        constraints=RuleConstraintsExtracted(
+            banned_hour_windows=[HourWindowWithCitation(
+                start="10:00", end="15:30", citation=cit)],
+            wbgt_stop_work_c=ValueWithCitation(value=32.1, citation=cit),
+            workload_rest_ratios=[RestRatioWithCitation(
+                workload="heavy", work_fraction=0.25, citation=cit)]))
+
+
+def test_numeric_guard_allows_cited_rule_values_only_with_the_record():
+    s = _sched()
+    rec = _rule_record()
+    text = "Stop work at 32.1 C. Heavy work runs a 0.25 duty cycle. Ban 10 to 15:30."
+    # without the record the rule numbers look ungrounded
+    assert set(numeric_guard(text, s)) >= {"32.1", "0.25"}
+    # with the applied record they are tool-sourced and pass
+    assert numeric_guard(text, s, [rec]) == []
+    # a genuinely foreign number is still caught
+    assert numeric_guard(text + " Fine of 5000 QAR.", s, [rec]) == ["5000"]
+
+
+def test_slim_rules_does_not_leak_threshold_values():
+    from src.agent.brief import _slim_rules
+    slim = _slim_rules([_rule_record()])
+    blob = repr(slim)
+    assert "32.1" not in blob and "0.25" not in blob
+    assert slim[0]["rule_id"] == "qatar-md-17-2021"
+    assert "wbgt_stop_work_c" in slim[0]["referenceable_fields"]
+
+
+def test_generate_briefing_hides_rule_values_from_the_model():
+    s = _sched()
+    seen = {}
+
+    class Spy(MockLLM):
+        def write_briefing(self, sched, rules, *, location_name):
+            seen["rules"] = rules
+            return super().write_briefing(sched, rules,
+                                          location_name=location_name)
+
+    generate_briefing(s, location_name="Lusail", llm=Spy(),
+                      rule_records=[_rule_record()])
+    assert "32.1" not in repr(seen["rules"])
+
+
 # --------------------------------------------------------------- monitoring
 def test_material_changes_none_when_identical():
     s = _sched()

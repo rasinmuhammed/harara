@@ -395,7 +395,10 @@ def register(name: str, cls: type[LLM]) -> None:
     _REGISTRY[name] = cls
 
 
-_OPTIONAL = {"anthropic": "src.agent.anthropic_llm"}
+_OPTIONAL = {
+    "anthropic": "src.agent.anthropic_llm",
+    "k2": "src.agent.k2_llm",
+}
 
 
 def get_llm(name: str = "mock", **kwargs) -> LLM:

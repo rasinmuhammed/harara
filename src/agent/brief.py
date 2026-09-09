@@ -2,10 +2,11 @@
 Grounded briefing generation. The model drafts prose; this module then
 checks it and will not return a briefing that fails either check:
 
-  numeric guard  every number in the briefing matches a value in the
-                 scheduler response (or a rounding of one).
+  numeric guard  every number in the briefing matches a value in a tool
+                 output -- the scheduler response, or a cited value from
+                 an applied rule record (both come from tools).
   rule guard     every [rule:<id>#<field>] reference resolves to a
-                 confirmed record and a real constraint field.
+                 supplied record and a real constraint field.
 
 A draft that fails is retried once, then rejected.
 """
@@ -18,7 +19,16 @@ from src.agent.llm import get_llm
 from src.agent.schemas import RuleRecord, RunSchedulerResponse
 
 _NUM = re.compile(r"-?\d+(?:\.\d+)?")
-_STRIP = re.compile(r"\d{4}-\d{2}-\d{2}|\b\d{1,2}:\d{2}\b|\[rule:[^\]]*\]")
+# Remove tokens that carry digits but are not quantities before scanning:
+# ISO dates, MM-DD windows, clock times, [rule:...] refs, and kebab-case
+# identifiers such as a rule id (qatar-md-17-2021).
+_STRIP = re.compile(
+    r"\d{4}-\d{2}-\d{2}"
+    r"|\b\d{2}-\d{2}\b"
+    r"|\b\d{1,2}:\d{2}\b"
+    r"|\[rule:[^\]]*\]"
+    r"|\b[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)+\b"
+)
 _RULE_REF = re.compile(r"\[rule:([^#\]]+)#([^\]]+)\]")
 _RULE_FIELDS = {"banned_hour_windows", "wbgt_stop_work_c", "seasonal_window",
                 "workload_rest_ratios"}
@@ -29,7 +39,10 @@ class UngroundedBriefing(RuntimeError):
     """Raised when a draft still fails a check after one retry."""
 
 
-def allowed_numbers(sched: RunSchedulerResponse) -> set[float]:
+def allowed_numbers(
+    sched: RunSchedulerResponse,
+    rule_records: list[RuleRecord] | None = None,
+) -> set[float]:
     vals: set[float] = {0.0, 1.0}
     for x in (sched.plan_peak_strain, sched.plan_tail_strain,
               sched.baseline_peak_strain, sched.baseline_tail_strain,
@@ -46,11 +59,26 @@ def allowed_numbers(sched: RunSchedulerResponse) -> set[float]:
                  (sched.baseline_tail_strain, sched.plan_tail_strain)):
         vals.add(round(float(a) - float(b), 2))
         vals.add(round(float(b) - float(a), 2))
+    # cited values from applied rule records (these come from lookup_rule)
+    for rec in rule_records or []:
+        c = rec.constraints
+        if c.wbgt_stop_work_c is not None:
+            vals.add(round(float(c.wbgt_stop_work_c.value), 2))
+            vals.add(round(float(c.wbgt_stop_work_c.value), 3))
+        for r in c.workload_rest_ratios:
+            vals.add(round(float(r.work_fraction), 3))
+        for w in c.banned_hour_windows:
+            for edge in (w.start, w.end):
+                vals.add(float(int(edge[:2])))
     return vals
 
 
-def numeric_guard(text: str, sched: RunSchedulerResponse) -> list[str]:
-    allowed = allowed_numbers(sched)
+def numeric_guard(
+    text: str,
+    sched: RunSchedulerResponse,
+    rule_records: list[RuleRecord] | None = None,
+) -> list[str]:
+    allowed = allowed_numbers(sched, rule_records)
     bad: list[str] = []
     for tok in _NUM.findall(_STRIP.sub(" ", text)):
         v = float(tok)
@@ -72,11 +100,22 @@ class Briefing:
     def __init__(self, text: str, sched: RunSchedulerResponse,
                  records: list[RuleRecord]):
         self.text = text
-        self.numeric_ok = not numeric_guard(text, sched)
+        self.numeric_ok = not numeric_guard(text, sched, records)
         self.rules_ok = not rule_guard(text, records)
 
     def __str__(self) -> str:
         return self.text
+
+
+def _slim_rules(records: list[RuleRecord]) -> list[dict]:
+    """What the model is allowed to see about a rule: its id and the
+    fields it may reference. Not the threshold values -- those must come
+    to the prose only through the scheduler result."""
+    return [{"rule_id": r.rule_id,
+             "referenceable_fields": sorted(
+                 f for f in _RULE_FIELDS
+                 if getattr(r.constraints, f, None) not in (None, [], ()))}
+            for r in records]
 
 
 def generate_briefing(
@@ -89,12 +128,12 @@ def generate_briefing(
 ) -> Briefing:
     llm = llm or get_llm()
     records = rule_records or []
-    rule_dicts = [r.model_dump(mode="json") for r in records]
+    slim = _slim_rules(records)
 
     last_bad: list[str] = []
     for _ in range(retries + 1):
-        text = llm.write_briefing(sched, rule_dicts, location_name=location_name)
-        bad_num = numeric_guard(text, sched)
+        text = llm.write_briefing(sched, slim, location_name=location_name)
+        bad_num = numeric_guard(text, sched, records)
         bad_rule = rule_guard(text, records)
         if not bad_num and not bad_rule:
             return Briefing(text, sched, records)
