@@ -1,35 +1,40 @@
-# Harara web
+# Harara site
 
-Single-screen Next.js app for the forecast-driven work/rest scheduler. It talks
-only to the FastAPI service in `../api` (through same-origin route handlers that
-proxy server-side); there are no keys or secrets in the browser.
+The product site for the forecast-driven work/rest scheduler: a landing page, a
+chat product app at `/app`, and animated result artifacts that render inside
+the chat and expand full screen. It talks only to the FastAPI service in
+`../api` (through same-origin Next route handlers that proxy server-side, and a
+server component fetch for the landing hero). No keys in the browser.
 
-- Next.js 14 (App Router, TypeScript, RSC shell + one client island)
+- Next.js 14 App Router, TypeScript
 - Tailwind over a CSS-variable token layer (`app/globals.css`, both themes)
-- Radix primitives for the accessible controls; the hero chart is hand-built
-  with `d3-scale` + `d3-shape` and SVG
-- CSS-only motion (no animation library), all gated by `prefers-reduced-motion`
+- Geist Sans and Geist Mono via `geist/font`
+- The hero is React Three Fiber with a GLSL shader, code-split and loaded after
+  first paint, with a static poster and full reduced-motion / Save-Data
+  fallbacks
+- The artifacts (`components/artifact/`) are hand-built with `d3-scale` +
+  `d3-shape` and SVG
+- Lenis for smooth scroll; scroll reveals and count-ups are CSS + rAF
 
-See `DESIGN.md` for the token system, the WBGT colour ramp and its
-colour-vision-deficiency rationale, and the four non-happy UI states.
+See `DESIGN.md` for tokens, the WBGT colour ramp with its colour-blindness
+check, the motion principles, and the copy rules.
 
 ## Run locally
 
 ```bash
-# 1. start the API (from the repo root)
+# 1. the API, from the repo root
 pip install -r api/requirements.txt
 HARARA_FORECAST_SOURCE=mock uvicorn api.main:app --port 8000
+#   drop HARARA_FORECAST_SOURCE for real Open-Meteo forecasts
+#   set HARARA_LLM=anthropic (with ANTHROPIC_API_KEY) for a conversational
+#   assistant; the default "mock" runs offline with a deterministic summary
 
-# 2. start the web app
+# 2. the web app
 cd web
 pnpm install
 echo "API_BASE=http://127.0.0.1:8000" > .env.local
 pnpm dev            # http://localhost:3000
 ```
-
-`HARARA_FORECAST_SOURCE=mock` serves a deterministic synthetic day so you can
-work offline; drop it for real Open-Meteo forecasts. Add `?demo=1` to the URL
-to auto-run a Doha plan on load.
 
 ## Environment
 
@@ -37,21 +42,21 @@ to auto-run a Doha plan on load.
 |---|---|
 | `API_BASE` | base URL of the Harara API. Server-side only. Falls back to `NEXT_PUBLIC_API_BASE`, then `http://127.0.0.1:8000`. |
 
-## Build & deploy (Vercel)
+## Build and deploy (Vercel)
 
 ```bash
 pnpm build && pnpm start        # local production check
 ```
 
 Import the repo into Vercel with **root directory `web`**. Set `API_BASE` to
-the deployed API origin (e.g. the Render URL). `vercel.json` pins the framework
-and pnpm. After the first deploy, set the API's `ALLOWED_ORIGINS` to the Vercel
-URL so CORS admits it.
+the deployed API origin. After the first deploy, set the API's
+`ALLOWED_ORIGINS` to the Vercel URL so CORS admits it.
 
-## Scripts
+## Routes
 
-| script | |
+| route | |
 |---|---|
-| `pnpm dev` | dev server |
-| `pnpm build` / `pnpm start` | production build / serve |
-| `pnpm typecheck` | `tsc --noEmit` |
+| `/` | landing page (server component, fetches the Doha plan for the hero and the scrub chart) |
+| `/app` | chat product app |
+| `/api/plan`, `/api/parse` | JSON proxies to the API |
+| `/api/chat` | SSE proxy, streamed straight through |

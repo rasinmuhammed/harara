@@ -1,133 +1,134 @@
-# Harara web — design system
+# Harara site design system
 
-The reference class is the editorial / instrument-panel end of product design
-(Linear, the Vercel dashboard, FT data journalism), not generic SaaS. Confident
-whitespace, precise typography, the data carries the page. No hero gradient, no
-glassmorphism, no illustration, no emoji. The warmth in the palette is a
-restrained nod to the region (honey, date, cardamom) held to the neutral scale
-and a single saffron accent.
+Reference class: the product and marketing sites of Linear, Vercel, Anthropic,
+Cursor, Runway, ElevenLabs, Modal. Precise, confident, dark-first, motion used
+with intent. No hero gradient, no glassmorphism, no stock illustration, no
+emoji. All tokens are CSS custom properties in `app/globals.css`, defined for
+both themes; Tailwind is a thin utility layer over them.
 
 ## Type
 
-| role | face | why |
-|---|---|---|
-| headings, the two hero numbers | **Fraunces** (variable serif, `opsz`) | editorial gravitas; distinctive without shouting |
-| UI, body, every figure | **Inter** (variable) | screen-tuned; first-class `tabular-nums` |
+- **Geist Sans** for UI and prose (via `geist/font`, self-hosted).
+- **Geist Mono** for every numeral, axis label, and data value.
+  `font-variant-numeric: tabular-nums lining-nums`. Applied through `.mono` /
+  `.tnum` and the `font-mono` utility.
 
-Scale — major third (1.25), in `rem`, defined in `tailwind.config.ts`:
+Scale (`tailwind.config.ts`, rem / px):
 
 ```
-caption .75  ·  sm .875  ·  base 1  ·  lead 1.125
-stat 1.5  ·  h3 1.5  ·  h2 2  ·  title 2.75  ·  hero 3.75
+micro .75/12   sm .8125/13   base .9375/15   lg 1.0625/17
+h4 1.25/20   h3 1.5/24   h2 2/32   h1 clamp(2.25rem, 6vw, 3.75rem)
+stat 1.75/28
 ```
 
-Every number the reader is meant to trust carries `.tnum`
-(`font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1`). Titles
-and the hero number clamp ~30% smaller below 640px.
+Headings: weight 560, `letter-spacing: -0.018em`, `text-wrap: balance`.
+Eyebrow labels: `.eyebrow` (Geist Mono, 12px, uppercase, `+0.08em`).
 
 ## Colour
 
-All tokens live as CSS custom properties in `app/globals.css`, defined for
-three theme states: bare `:root` (light), `@media (prefers-color-scheme: dark)
-:root:not([data-theme="light"])` (system dark), and `:root[data-theme="dark"]`
-(explicit toggle, wins over a light OS). `body` sets `background` from a token
-so the page never borrows the host ground.
+Dark is the primary design. Bare `:root` is dark; light is opt-in via
+`:root[data-theme="light"]` or, with no attribute, `prefers-color-scheme:
+light`. `body` sets `background` from a token.
 
-### Neutrals (warm-biased toward the accent)
+### Neutrals
 
-| token | light | dark |
+| token | dark | light |
 |---|---|---|
-| `--bg` | `#fbf9f5` | `#15120e` |
-| `--surface` | `#ffffff` | `#1d1913` |
-| `--surface-sunken` | `#f3efe7` | `#110f0b` |
-| `--border` / `--border-strong` | `#e7e1d5` / `#d7cdbb` | `#2c261d` / `#3f372b` |
-| `--text` / `--text-secondary` / `--text-muted` | `#211c15` / `#5b5348` / `#8a8073` | `#f4eee3` / `#b6ac99` / `#847a69` |
+| `--bg` | `#0b0b0c` | `#fbfaf8` |
+| `--bg-raised` | `#141416` | `#ffffff` |
+| `--surface` / `--surface-2` | `#161719` / `#1d1e21` | `#ffffff` / `#f4f2ee` |
+| `--border` / `--border-strong` | `#26272b` / `#383a3f` | `#e6e3dc` / `#d3cec3` |
+| `--text` / `--text-secondary` / `--text-muted` | `#ececee` / `#a1a1a8` / `#8b8c93` | `#17181a` / `#55565c` / `#63646b` |
 
-### Accent + comparison
+### Accent
 
-| token | light | dark |
+| token | dark | light |
 |---|---|---|
-| `--accent` (saffron) | `#b56f14` | `#e0a343` |
-| `--compare` (calendar ban, recessive slate) | `#6e7e8c` | `#7c8b98` |
+| `--accent` (heat amber) | `#e9963e` | `#b4650e` |
+| `--accent-ink` (text on accent) | `#1a1206` | `#ffffff` |
 
-The optimiser plan is the accent; the calendar ban is drawn in `--compare` as a
-hatched outline so it visually recedes.
+`--text-muted` clears AA (>= 4.5:1) on `--bg` and `--surface` in both themes;
+`--accent-ink` on `--accent` is >= 6:1 in both. Verified with Lighthouse
+(accessibility 99 on both themes).
 
-### Operational states (work / reduced / stop)
+### WBGT ramp (`lib/ramp.ts`)
 
-Reserved status colours. Never carried by hue alone — every state ships a
-**glyph** (● ◐ ■), a **text label**, and STOP additionally gets a 45° hatch
-fill and a top edge rule.
+Cool to hot, interpolated in OKLab, with a deliberate discontinuity at 32.1 C
+(the Decision 17/2021 stop-work line) and a 1 px rule drawn there so the break
+survives greyscale. Blue to teal to near-neutral below, a jump to amber to deep
+red above. The grey-green at 32.0 is a transition, not a category.
 
-| state | glyph | light | dark |
+| WBGT C | dark | light |
+|---|---|---|
+| 24 | `#3c6e8e` | `#22506e` |
+| 27 | `#4c93ac` | `#2f7189` |
+| 30 | `#87b9ba` | `#6da0a0` |
+| 32.0 | `#c4cdbd` | `#aeb8a8` |
+| **32.1** | `#f2c066` | `#e9b24c` |
+| 34 | `#e79a4f` | `#db8038` |
+| 37 | `#d06a54` | `#c04a34` |
+| 40 | `#a03e37` | `#6e2420` |
+
+Colour-blindness check (OKLab dE, deuteranopia and protanopia simulated):
+adjacent stops separate by dE >= 9 under both, the 32.0 -> 32.1 jump is
+dE ~= 12, every below-line vs above-line pair exceeds dE 17. Blue vs amber/red
+is the safe axis, so the ramp reads cool-to-hot under both conditions.
+
+### Operational states
+
+Reserved status colours, never carried by hue alone: each state also has a
+glyph and a text label, and `stop` adds a 45-degree hatch fill and a top rule.
+
+| state | glyph | dark | light |
 |---|---|---|---|
-| work | ● | `#2e7d6b` | `#4fb39a` |
-| reduced | ◐ | `#b67a12` | `#dda63c` |
-| stop | ■ | `#a83246` | `#d66074` |
+| work | filled circle | `#4fb39a` | `#2e7d6b` |
+| reduced | half circle | `#dda63c` | `#b67a12` |
+| stop | filled square + hatch | `#d66074` | `#a83246` |
 
-**CVD rationale.** Checked in OKLab with simulated deuteranopia/protanopia. All
-pairs separate by dE ≥ 18 under normal vision. Green↔red collapses toward the
-same olive under deuteranopia (dE ≈ 6.7) — this is unavoidable for a
-green/amber/red semantic that carries strong learned meaning, so it is
-mitigated by four redundant channels: the distinct glyph shape, the always-on
-label, the STOP hatch + rule (unmistakable in greyscale), a staggered
-luminance (L\* 53.6 / 62.6 / 49.9), and positional separation (work at the
-day's edges, stop in the middle). A greyscale or forced-colours reader loses no
-information.
-
-### WBGT ramp
-
-Perceptual cool → hot with a **deliberate discontinuity at 32.1 °C** (the
-Decision 17/2021 stop-work line). Blue → teal → near-neutral below; a hard jump
-to amber → red above. Blue↔amber/red is the CVD-safe axis; the grey-green just
-under the line is a transition, not a category. Interpolated in OKLab
-(`lib/ramp.ts`), also drawn as a 1px rule so the break survives greyscale.
-
-| °C | light | dark | | °C | light | dark |
-|---|---|---|---|---|---|---|
-| 24 | `#22506e` | `#3c6e8e` | | **32.1** | `#e9b24c` | `#f2c066` |
-| 27 | `#2f7189` | `#4c93ac` | | 34 | `#db8038` | `#e79a4f` |
-| 30 | `#6da0a0` | `#87b9ba` | | 37 | `#c04a34` | `#d06a54` |
-| 32.0 | `#aeb8a8` | `#c4cdbd` | | 40 | `#6e2420` | `#a03e37` |
-
-Adjacent stops separate by dE ≥ 10 (normal) / ≥ 9 (deuter/protan); the
-32.0 → 32.1 jump is dE ≈ 12.
-
-## Space, radius, elevation
-
-Tailwind's default 4px scale (unmodified). Radius `--r-sm` 6 / `--r` 10 /
-`--r-lg` 16 — cards use `lg`, controls use the default. One elevation token
-`--shadow-card`; dark leans on `--border-strong` instead of shadow.
+Green and red collapse toward the same olive under deuteranopia (dE ~= 6.7).
+Mitigated by four redundant channels: glyph shape, always-visible label, the
+stop hatch and rule (unmistakable in greyscale), staggered luminance, and
+position (work at the day's edges, stop in the middle).
 
 ## Motion
 
-CSS-only, no animation library, for bundle weight and Lighthouse. Durations
-`--dur-1` 120ms / `--dur-2` 220ms / `--dur-3` 420ms; easing
-`cubic-bezier(.16,1,.3,1)`.
+- **Lenis** for smooth scrolling. Not loaded under `prefers-reduced-motion` or
+  `Save-Data`.
+- Scroll reveals: `<Reveal>` uses IntersectionObserver + a CSS transition
+  (opacity + 12 px rise). SSR renders visible; a 1.5 s safety timeout means
+  content is never left hidden.
+- Count-ups: `useCountUp`, a rAF cubic ease, first render only.
+- The WBGT curve draws on with `stroke-dashoffset` (`.draw-on`).
+- The hero is the only place a heavier animation library (GSAP is available in
+  that code-split chunk) or WebGL runs. It is off entirely under
+  reduced-motion, Save-Data, or a low uncharged battery; the poster is the
+  hero in that case.
+- `@media (prefers-reduced-motion: reduce)` collapses all of it to instant,
+  and the count-up hook and Lenis loader short-circuit in JS.
 
-- results entrance: `animate-rise` (fade + 8px), `--dur-3`
-- WBGT curve: `draw-on` stroke-dashoffset, 640ms
-- stat count-ups: `useCountUp`, 900ms, first render only
-- skeletons: 1.5s shimmer sweep
+## The hero visual
 
-Everything collapses to instant under
-`@media (prefers-reduced-motion: reduce)` — the count-up hook and the shimmer
-also short-circuit in JS.
+React Three Fiber, a full-screen quad with a GLSL fragment shader driven by
+the day's WBGT curve (from `/api/plan` for Doha, fetched server-side). It draws
+isotherm bands that crowd toward the hot colours where WBGT rises and a faint
+ridge where the curve crosses the stop-work level. Slow drift only.
 
-## The four non-happy states
+Progressive: a static CSS-and-SVG poster paints first with no 3D in the initial
+bundle; after `load` and one idle callback the canvas is dynamically imported
+and cross-faded in; an IntersectionObserver stops the frame loop when the hero
+is offscreen; DPR is capped at 1.5; `powerPreference: "low-power"`. The landing
+route's initial JS is 113 kB; `three` is a separate chunk loaded after paint.
+Lighthouse mobile with the hero present: performance 95, accessibility 99,
+best practices 100, CLS 0.
 
-`components/states/` — `EmptyState` (ghosted axes sketch + instruction, always
-with the assumptions panel visible), `ResultsSkeleton` (layout-matched blocks,
-`aria-busy`, no spinner), `ErrorState` (broken-line glyph, "your inputs are
-kept", retry re-fires the last request), `ClarificationState` (the NL parser's
-question verbatim, missing fields as chips, framed as "won't guess a
-safety-relevant value").
+## Copy rules
 
-## Accessibility
-
-Semantic landmarks (`header`/`main`/`aside`/`section`/`footer`), a skip link,
-`:focus-visible` rings on every control from one token. The hand-built chart is
-`role="application"` `tabindex=0` with arrow-key hour navigation, a `<desc>` and
-`<figcaption>` text alternative that spells out the colour encoding, and a live
-readout region. Colour is never the only encoding (glyph + label everywhere).
-Contrast is AA or better on both themes.
+Founder voice. Short sentences, concrete nouns, specific numbers with their
+comparison and cost. No em dashes or en dashes as punctuation anywhere. Banned:
+"not just X, it is Y", "seamless(ly)", "unlock", "empower", "leverage" (verb),
+"revolutionise", "game changer", "cutting edge", "in today's world", "we are on
+a mission", "designed to" / "built to" as filler, three-item adjective lists,
+rhetorical-question headings, exclamation marks. Plain word over the long one
+("use" not "utilise"). Every domain term gets one plain sentence with no jargon
+inside it; the `Term` component and `lib/glossary.ts` hold these and are used
+in prose and in the artifact.
