@@ -449,13 +449,67 @@ alarm gives roughly 45 minutes of median warning. Absolute probability
 calibration is over-confident on synthetic data and is a pre-registered pilot
 endpoint.
 
-USARIEM's ECTemp (Buller et al., 2013) estimates core temperature from heart
-rate alone with a random-walk model and no forecast coupling. ISO 7933,
-Fiala and JOS-3 are open-loop forward models. The combination here, assimilating
-a physics model to a worker's live sensors and propagating it under the WBGT
-forecast, validated against ingestible-capsule temperature in a migrant-labour
-cohort, has not been published. The pilot design is in
-`docs/digital_twin_protocol.md`.
+### 9.1 External validation on real physiology
+
+The synthetic study uses the two-node model as its own ground truth, so it can
+only show the filter recovers what it assumes. To test the filter against real
+bodies it was run on the PROSPIE dataset (Havenith et al., Loughborough
+University, figshare `10.17028/rd.lboro.26076577`, CC BY-NC 4.0):
+40 participants, 154 usable trials, treadmill walking in a climate chamber at
+25, 35 and 40 C, permeable or impermeable clothing, some trials with a
+600 W/m^2 radiant load, at 1-minute resolution, with a 10 cm rectal probe as
+the reference. `scripts/twin_external_validation.py`.
+
+Heart rate and mean skin temperature (ISO 9886 weighting of 11 sites) are
+mapped to the filter inputs; metabolic rate is the ACSM walking estimate from
+treadmill speed and grade. Nothing is tuned on the scored subject: the particle
+filter runs on library defaults, and the ECTemp-class comparator's population
+heart-rate-to-core curve is fit leave-one-subject-out. Aggregates are the mean
+of per-subject means (subject as the random effect); 95% CIs and repeated-
+measures Bland-Altman limits of agreement are from a cluster bootstrap over
+subjects (2000 resamples, seed 0). The first 8 minutes of each trial are a
+filter burn-in and are not scored.
+
+| Method | bias (C) | RMSE (C) | MAE (C) | 95% LoA (C) | 95% CI coverage |
+|---|---|---|---|---|---|
+| ECTemp-class HR-only EKF | -0.45 [-0.50, -0.40] | 0.52 [0.48, 0.56] | 0.48 | [-0.83, -0.07] | - |
+| PF, HR + activity | +0.10 [-0.02, +0.20] | 0.54 [0.43, 0.62] | 0.45 | [-0.84, +1.04] | 42% |
+| PF, HR + activity + skin | +0.00 [-0.05, +0.05] | 0.41 [0.39, 0.44] | 0.35 | [-0.44, +0.44] | 36% |
+
+What holds from the synthetic study: the skin channel is what makes the physics
+filter better than heart rate alone. With HR and activity only, the filter
+matches the ECTemp-class baseline on RMSE (0.54 vs 0.52) and improves only the
+bias (+0.10 vs -0.45 C). Adding the skin-temperature channel takes RMSE to
+0.41 C (a 21% reduction on the baseline, CI on the paired per-subject
+difference excludes zero), removes the bias, and halves the limits of agreement
+(+/-0.44 vs the baseline's [-0.83, -0.07]). It is also stable across the
+clothing and solar splits, where the HR-only configuration degrades
+(RMSE 0.65 C under impermeable clothing, a known weakness: the two-node model's
+clothing vapour permeability is fixed). For comparison, a tuned deep model on
+the same data family reports RMSE 0.29 C against the same ECTemp baseline at
+0.34 C (Zhao et al., 2026); the physics filter is less accurate than that but
+beats the conventional baseline without any fitting.
+
+What does not transfer: the synthetic 0.083 C MAE. On real bodies the best
+configuration is 0.35 C MAE, four times worse, because real inter-individual
+variation and model structural error are absent from the synthetic ground
+truth. And the credible intervals are not calibrated out of domain: nominal 95%
+intervals cover the rectal temperature only 36 to 42% of the time. The point
+estimate is usable; the filter's stated uncertainty is not, and widening it is
+a pilot task, not a tuning knob to turn here.
+
+Domain shift from the intended use is large: European laboratory volunteers
+walking on a treadmill, not Gulf outdoor workers; research thermistors, not a
+cheap wearable patch; a rectal probe, not the ingestible capsule the pilot
+assumes. The result supports the ordering claim (the physics filter with a
+skin channel beats heart rate alone on real data) and refutes the synthetic
+error magnitude. USARIEM's ECTemp (Buller et al., 2013) estimates core
+temperature from heart rate alone with a random-walk model and no forecast
+coupling; ISO 7933, Fiala and JOS-3 are open-loop forward models. The
+combination here, assimilating a physics model to a worker's live sensors and
+propagating it under the WBGT forecast, validated against ingestible-capsule
+temperature in a migrant-labour cohort, has not been published. The pilot
+design is in `docs/digital_twin_protocol.md`.
 
 ## 10. Language-model layer
 

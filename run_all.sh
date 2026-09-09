@@ -75,6 +75,14 @@ run_if data/previous_runs scripts/aiwp_humid_heat_study.py
 # ---------------------------------------------------------------- 6. contributions
 run scripts/scheduler_study.py
 run scripts/digital_twin_demo.py
+# External validation of the heat-strain filter on PROSPIE (Loughborough,
+# figshare 10.17028/rd.lboro.26076577, CC BY-NC 4.0). Downloads ~6 MB on
+# first run; skips the fetch offline.
+if [[ $FETCH -eq 1 ]]; then
+  run scripts/twin_external_validation.py
+else
+  run_if data/prospie/prospie.xlsx scripts/twin_external_validation.py --no-fetch
+fi
 run scripts/make_figures.py
 
 # ---------------------------------------------------------------- 7. agent layer

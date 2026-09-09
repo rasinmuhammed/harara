@@ -24,7 +24,7 @@ what changed as a consequence. Ordered chronologically.
 | 13 | Does the calendar ban match the physiological hazard? | ACGIH TLV screening, `work_rest_analysis.py` | The ban covers 25% of daylight warm-season hours; 63% of the unsafe hours for heavy unacclimatised work fall outside it (1085 per year). Over-restriction is about 6% | Supported |
 | 14 | Does risk-optimal scheduling beat the calendar rule at equal output? | CVaR linear program, walk-forward, `scheduler_study.py` | Mean peak strain down 14% (interval [+0.80, +1.39]), tail down 16 to 20%, no shortfall, all leads | Supported |
 | 15 | Does the stochastic layer beat the deterministic optimiser (analog scenarios)? | Same study | Stochastic is 3% worse (interval [-0.25, -0.11]); the forecast is too accurate to need hedging | Rejected for this regime; conditional on a hard chance constraint or genuine ensembles |
-| 16 | Can a physics filter estimate individual core temperature better than heart rate alone? | Two-node model and particle filter, synthetic, `digital_twin_demo.py` | Heart-rate-only 0.36 C MAE; physics filter with HR, activity and a skin patch 0.083 C MAE, 92% coverage | Supported on synthetic data |
+| 16 | Can a physics filter estimate individual core temperature better than heart rate alone? | Two-node model and particle filter, synthetic, `digital_twin_demo.py` | Heart-rate-only 0.36 C MAE; physics filter with HR, activity and a skin patch 0.083 C MAE, 92% coverage | Supported on synthetic data; see row 30 for real data |
 | 17 | Does the filter give useful anticipatory warning? | Forward propagation under a forecast ensemble | Recall 0.91 at alarm probability 0.35; forward probability rises from 0.34 to 0.86 as the crossing approaches; about 45 minutes of median warning | Partial on synthetic data; probability calibration is a pilot endpoint |
 | 18 | Can we predict at issue time that the day's peak-WBGT forecast will be wrong? | `gefs_reliability_study.py`: LightGBM, held-out-by-year, PR-AUC with block bootstrap, against a spread-decile rule | Pending the backfill; predicts GEFS-versus-reanalysis divergence, about 7 scorable years, wide interval | Built; the multi-year reliability study from #12, unblocked |
 | 19 | Can a language model add an interface layer without becoming a source of numbers? | Typed tool layer over the scheduler; model reached through one interface with a deterministic mock; `tests/test_agent_tools.py` | The four tools (`get_forecast`, `compute_wbgt`, `run_scheduler`, `lookup_rule`) wrap existing code with Pydantic request/response validation and no logic of their own; an under-specified call fails before any computation | Built |
@@ -38,6 +38,7 @@ what changed as a consequence. Ordered chronologically.
 | 27 | Can GraphCast be assessed for humid heat at all? | Open-Meteo Previous Runs feed; synthetic GraphCast-T + IFS-humidity hybrid as a bound | GraphCast serves only 2 m T and cloud, so no real WBGT forecast is possible. The hybrid gives WBGT bias +0.5 to +1.0 C, miss 0.15-0.28 (safe-side) | Partial. GraphCast's temperature error is not a cold-direction stop-work hazard, but a direct humid-heat evaluation is blocked by the public feed |
 | 28 | Deliverable, not a result | `api/` FastAPI service (`/api/plan`, `/api/parse`, streaming `/api/chat`) + `web/` product site: landing page, chat app, animated day-chart artifacts | The scheduler is exposed as a service, a chat app, and a public site. The model turns a request into a validated call and the result into sentences; every number comes from the API and the numeric guard holds. No new claim; the digital twin is absent | Built |
 | 29 | Deliverable, not a result | Site addendum: interactive vector map for the site location (`SiteMap`, MapLibre + OpenFreeMap, no key), plain-language work types, a confirm-before-plan summary, per-hour work/rest text, forecast uncertainty band and dry-hot flag distilled to shipped tables (`api/data/wbgt_residuals.json`), one precomputed replay week (`api/data/replay/`), shareable `/app?q=` links and a print sheet | Input and explanation are tangible without changing the deterministic core: the map and work types feed the same `PlanRequest`; the band, replay and dry-hot note are visual only and carry no second number; 101 tests pass | Built |
+| 30 | Does the heat-strain filter beat heart rate alone on REAL physiology, not just its own synthetic ground truth? | PROSPIE dataset (Havenith et al., Loughborough, figshare `10.17028/rd.lboro.26076577`, CC BY-NC 4.0): 40 subjects, 154 treadmill-in-chamber trials, rectal-probe reference, 1-min. Particle filter on library defaults, ECTemp-class HR-only EKF with a leave-one-subject-out population curve, cluster bootstrap over subjects. `scripts/twin_external_validation.py` | HR + activity only ties the baseline on RMSE (0.54 vs 0.52 C) and only fixes the bias (+0.10 vs -0.45 C). HR + activity + skin: RMSE 0.41 C (-21% vs baseline, paired CI excludes zero), bias +0.00 C, LoA +/-0.44 C, robust across clothing and solar splits. The synthetic 0.083 C MAE does not transfer (real best is 0.35 C MAE). Credible-interval coverage is 36-42% for nominal 95%: the point estimate is usable, the stated uncertainty is not | Partially supported on real data. The ordering claim holds (physics filter + skin beats HR-only); the synthetic error magnitude is refuted; interval calibration is a pilot task. Large domain shift (lab walkers, not Gulf outdoor workers) |
 
 ## Summary
 
@@ -51,14 +52,20 @@ Supported: the calendar ban leaves about 60% of the role-specific danger
 uncovered; risk-optimal scheduling reduces peak and tail heat strain by about
 14% and 20% at equal output.
 
-Supported on synthetic data, pending a pilot: a physics filter estimates
-individual core temperature about four times more accurately than the
-heart-rate-only state of the art.
+Partly supported on real physiology (PROSPIE, rectal reference): the physics
+filter with a skin-temperature channel beats the heart-rate-only state of the
+art on real bodies, RMSE 0.41 vs 0.52 C, bias near zero. The synthetic 0.083 C
+MAE does not transfer (real best 0.35 C), and the filter's credible intervals
+are not calibrated out of domain. A pilot in the target population is still
+required.
 
-Built, deterministic core intact: a language-model interface layer that parses
-requests, extracts cited rule constraints, and writes grounded briefings
-without producing any number itself. The guards and the store are tested; the
-quality of a real model on messy input is not yet measured.
+Built, deterministic core intact, and now scored against a real model: a
+language-model interface layer that parses requests, extracts cited rule
+constraints, and writes grounded briefings without producing any number itself.
+With K2-Horizon driving it, the fail-closed properties hold (every ambiguous
+request asks back, every injected foreign number is caught by the guard);
+extraction quality is uneven and the model is not reproducible at temperature
+zero. See rows 20 and 21.
 
 Open, and requiring the pilot: anticipatory individual heat-strain estimation
 against measured core temperature; block-scale microclimate modelling.
