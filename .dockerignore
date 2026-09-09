@@ -1,0 +1,18 @@
+# The API image only needs src/ and api/. Everything else is excluded so the
+# Hugging Face / Docker build context stays small.
+.git/
+.venv/
+web/
+data/
+docs/
+notebooks/
+scripts/
+tests/
+eval/
+*.md
+.pytest_cache/
+__pycache__/
+*.pyc
+.DS_Store
+.env
+.claude/

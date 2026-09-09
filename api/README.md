@@ -66,6 +66,55 @@ HARARA_FORECAST_SOURCE=mock python -m pytest -q tests/test_api_plan.py tests/tes
 
 ## Deploy
 
+### Hugging Face Spaces (Docker SDK)
+
+The repo root has a Space-ready `Dockerfile` (uid 1000, port 7860, installs only
+`api/requirements.txt`, copies `src/` and `api/`) and a `.dockerignore` that
+keeps the build context to those two folders.
+
+1. Create the Space: on huggingface.co, New -> Space -> SDK **Docker** -> blank.
+   Call it e.g. `harara-api`.
+2. Add this YAML block to the **top of the Space's `README.md`** (Spaces read
+   their config from there):
+
+   ```
+   ---
+   title: Harara Scheduler API
+   emoji: "\U0001F321"
+   colorFrom: orange
+   colorTo: blue
+   sdk: docker
+   app_port: 7860
+   pinned: false
+   ---
+   ```
+
+   If you push this repo's `README.md` as-is you must prepend that block; or
+   keep a separate `README.md` on the Space's `main` branch.
+3. Push the code:
+
+   ```bash
+   git remote add space https://huggingface.co/spaces/<your-user>/harara-api
+   git push space main            # asks for your HF username + a write token
+   ```
+
+   The Space builds `./Dockerfile` automatically.
+4. In the Space, Settings -> Variables and secrets:
+
+   | name | value |
+   |---|---|
+   | `ALLOWED_ORIGINS` | your web URL, e.g. `https://harara.vercel.app` (comma-separate to add `http://localhost:3000`) |
+   | `HARARA_FORECAST_SOURCE` | `open-meteo` |
+   | `HARARA_LLM` | `k2` once the chat is wired (`mock` otherwise) |
+   | `IFM_API_KEY` | secret, only if `HARARA_LLM=k2` |
+
+5. The API is then at `https://<your-user>-harara-api.hf.space`. Point the web
+   app's `API_BASE` (Vercel env) at it. Check `…/api/health`.
+
+Notes: the free CPU tier sleeps after about 48 h idle and cold-starts in
+~30 s on the next request. Space code and build logs are public; the secrets
+above are not.
+
 ### Render (blueprint included)
 
 Push to GitHub, then Render dashboard -> New -> Blueprint -> this repo. It
