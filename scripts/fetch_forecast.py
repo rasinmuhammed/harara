@@ -1,43 +1,23 @@
 """
-Fetch an hourly weather forecast from the Open-Meteo forecast API (no key
-required, up to 16 days). Same variable set and units as
-scripts/fetch_open_meteo.py so the WBGT code consumes it unchanged.
-
-Used by src.agent.tools.get_forecast. Standalone:
+Command-line wrapper around src.open_meteo.fetch_forecast: an hourly weather
+forecast from the Open-Meteo forecast API (no key, up to 16 days), in the same
+variable set and units as scripts/fetch_open_meteo.py.
 
     python scripts/fetch_forecast.py --lat 25.27 --lon 51.61 \
         --start 2026-09-10 --end 2026-09-12 --out data/doha_forecast.csv
+
+The fetch function itself lives in src/ because the API depends on it at
+runtime.
 """
 
 import argparse
 import datetime as dt
+import sys
+from pathlib import Path
 
-import pandas as pd
-import requests
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-BASE_URL = "https://api.open-meteo.com/v1/forecast"
-HOURLY_VARS = [
-    "temperature_2m", "relative_humidity_2m", "surface_pressure",
-    "wind_speed_10m", "direct_radiation", "shortwave_radiation",
-]
-
-
-def fetch_forecast(lat: float, lon: float, start: dt.date, end: dt.date,
-                   timeout: int = 60) -> pd.DataFrame:
-    params = {
-        "latitude": lat, "longitude": lon,
-        "start_date": start.isoformat(), "end_date": end.isoformat(),
-        "hourly": ",".join(HOURLY_VARS),
-        "timezone": "UTC", "wind_speed_unit": "ms",
-    }
-    r = requests.get(BASE_URL, params=params, timeout=timeout)
-    r.raise_for_status()
-    j = r.json()
-    if "error" in j:
-        raise RuntimeError(j.get("reason", "open-meteo forecast error"))
-    df = pd.DataFrame(j["hourly"])
-    df["time"] = pd.to_datetime(df["time"], utc=True)
-    return df
+from src.open_meteo import BASE_URL, HOURLY_VARS, fetch_forecast  # noqa: F401,E402
 
 
 if __name__ == "__main__":

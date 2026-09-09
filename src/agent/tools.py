@@ -55,7 +55,7 @@ def get_forecast(req: GetForecastRequest) -> GetForecastResponse:
         return GetForecastResponse(
             lat=req.lat, lon=req.lon, hours=_mock_forecast(req),
             provider="mock", retrieved_utc=now)
-    from scripts.fetch_forecast import fetch_forecast
+    from src.open_meteo import fetch_forecast
 
     df = fetch_forecast(req.lat, req.lon, req.start_date, req.end_date)
     hours = [
