@@ -5,12 +5,8 @@ export function fmt(n: number, digits = 2): string {
   });
 }
 
-export function fmtPct(n: number): string {
-  const s = Math.abs(n).toLocaleString("en", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 1,
-  });
-  return `${n < 0 ? "+" : "−"}${s}%`; // reduction shown as −X%, an increase as +X%
+export function fmtInt(n: number): string {
+  return Math.round(n).toLocaleString("en");
 }
 
 export function fmtHour(h: number): string {

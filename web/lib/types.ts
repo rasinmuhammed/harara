@@ -1,4 +1,4 @@
-// Wire types — mirror api/schemas.py. Keep in sync with the backend.
+// Wire types. Mirror api/schemas.py.
 
 export type WorkloadClass = "light" | "moderate" | "heavy" | "very_heavy";
 export type PlanState = "work" | "reduced" | "stop";
@@ -6,7 +6,7 @@ export type PlanState = "work" | "reduced" | "stop";
 export interface PlanRequestBody {
   lat: number;
   lon: number;
-  date: string; // ISO yyyy-mm-dd
+  date: string;
   required_work_hours: number;
   workload_class: WorkloadClass;
   acclimatised: boolean;
@@ -58,33 +58,38 @@ export interface PlanResponse {
   meta: PlanMeta;
 }
 
-export type ParseResponse =
-  | { outcome: "parsed"; intent: Record<string, unknown> }
-  | { outcome: "clarification"; missing_fields: string[]; question: string };
+// chat SSE frames
+export type ChatFrame =
+  | { type: "status"; state: "parsing" | "forecasting" | "planning" | "writing" }
+  | { type: "clarification"; question: string; missing_fields: string[] }
+  | { type: "text"; delta: string }
+  | { type: "artifact"; plan: PlanResponse }
+  | { type: "error"; message: string }
+  | { type: "done" };
 
-export interface ApiError {
-  error: string;
-  retryable: boolean;
+export interface ChatTurn {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  status?: string;
+  clarification?: { question: string; missing_fields: string[] };
+  artifact?: PlanResponse;
+  error?: string;
+  streaming?: boolean;
 }
 
-export interface LocationPreset {
-  name: string;
-  lat: number;
-  lon: number;
-}
+export const DOHA = { name: "Doha", lat: 25.2854, lon: 51.531 };
 
-export const LOCATION_PRESETS: LocationPreset[] = [
-  { name: "Doha", lat: 25.2854, lon: 51.531 },
+export const LOCATION_PRESETS = [
+  DOHA,
   { name: "Lusail", lat: 25.43, lon: 51.49 },
   { name: "Industrial Area", lat: 25.19, lon: 51.44 },
   { name: "Al Wakrah", lat: 25.171, lon: 51.603 },
   { name: "Mesaieed", lat: 24.99, lon: 51.55 },
-  { name: "Al Rayyan", lat: 25.29, lon: 51.42 },
 ];
 
-export const WORKLOADS: { value: WorkloadClass; label: string; hint: string }[] = [
-  { value: "light", label: "Light", hint: "standing, light hand work (~180 W)" },
-  { value: "moderate", label: "Moderate", hint: "sustained arm + leg work, walking (~300 W)" },
-  { value: "heavy", label: "Heavy", hint: "pick / shovel work, carrying loads (~415 W)" },
-  { value: "very_heavy", label: "Very heavy", hint: "intense digging, stairs with load (~520 W)" },
+export const SUGGESTED_PROMPTS = [
+  "Plan tomorrow for a heavy, newly-arrived crew of 12 near Lusail. We need 8 work-hours.",
+  "Moderate work at the Industrial Area the day after tomorrow, acclimatised crew, 6 work-hours.",
+  "Light work in Doha tomorrow, acclimatised crew, 9 work-hours.",
 ];

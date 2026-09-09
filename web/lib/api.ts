@@ -1,7 +1,8 @@
-import type { PlanRequestBody, PlanResponse, ParseResponse } from "./types";
+import type { ChatFrame, PlanRequestBody, PlanResponse } from "./types";
 
-/** Both calls go to same-origin Next route handlers, which proxy to the API. */
+export type ChatMessageIn = { role: "user" | "assistant"; content: string };
 
+/** POST /api/plan through the same-origin Next route handler. */
 export async function fetchPlan(body: PlanRequestBody): Promise<PlanResponse> {
   const r = await fetch("/api/plan", {
     method: "POST",
@@ -9,23 +10,52 @@ export async function fetchPlan(body: PlanRequestBody): Promise<PlanResponse> {
     body: JSON.stringify(body),
   });
   if (!r.ok) {
-    const detail = await r.json().catch(() => ({}));
-    throw new Error(
-      detail?.error || detail?.detail || `Planner returned ${r.status}`,
-    );
+    const d = await r.json().catch(() => ({}));
+    throw new Error(d?.error || d?.detail || `Planner returned ${r.status}`);
   }
   return r.json();
 }
 
-export async function fetchParse(text: string): Promise<ParseResponse> {
-  const r = await fetch("/api/parse", {
+/**
+ * Stream POST /api/chat. Calls `onFrame` for each SSE frame. Returns when the
+ * stream ends. Throws on transport failure or a 429.
+ */
+export async function streamChat(
+  messages: ChatMessageIn[],
+  onFrame: (f: ChatFrame) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const r = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ messages }),
+    signal,
   });
-  if (!r.ok) {
-    const detail = await r.json().catch(() => ({}));
-    throw new Error(detail?.error || `Parser returned ${r.status}`);
+  if (r.status === 429) {
+    const d = await r.json().catch(() => ({}));
+    throw new Error(
+      d?.detail?.error || "Too many requests. Wait a minute and try again.",
+    );
   }
-  return r.json();
+  if (!r.ok || !r.body) throw new Error(`Chat returned ${r.status}`);
+
+  const reader = r.body.getReader();
+  const dec = new TextDecoder();
+  let buf = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    const frames = buf.split("\n\n");
+    buf = frames.pop() ?? "";
+    for (const raw of frames) {
+      const line = raw.trim();
+      if (!line.startsWith("data:")) continue;
+      try {
+        onFrame(JSON.parse(line.slice(5).trim()) as ChatFrame);
+      } catch {
+        /* ignore a partial frame */
+      }
+    }
+  }
 }

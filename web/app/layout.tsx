@@ -1,63 +1,42 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Inter } from "next/font/google";
+import { GeistSans } from "geist/font/sans";
+import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 
-const fraunces = Fraunces({
-  subsets: ["latin"],
-  variable: "--font-fraunces",
-  display: "swap",
-});
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap",
-});
-
-const SITE = "Harara — heat-safe shift planner";
+const TITLE = "Harara. Decide when to work by the forecast.";
 const DESC =
-  "Reshape the working day around the WBGT forecast: same work-hours, materially lower peak and tail heat load than Qatar's fixed 10:00–15:30 calendar ban.";
+  "Harara reads the weather forecast for your site, works out how hard the heat will be on the body hour by hour, and plans when the crew should work, ease off, or stop.";
 
 export const metadata: Metadata = {
-  title: SITE,
+  metadataBase: new URL("https://harara.vercel.app"),
+  title: TITLE,
   description: DESC,
   applicationName: "Harara",
   authors: [{ name: "Muhammed Rasin" }],
-  openGraph: {
-    title: SITE,
-    description: DESC,
-    type: "website",
-  },
-  twitter: { card: "summary_large_image", title: SITE, description: DESC },
+  openGraph: { title: TITLE, description: DESC, type: "website" },
+  twitter: { card: "summary_large_image", title: TITLE, description: DESC },
   robots: { index: true, follow: true },
 };
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fbf9f5" },
-    { media: "(prefers-color-scheme: dark)", color: "#15120e" },
+    { media: "(prefers-color-scheme: dark)", color: "#0b0b0c" },
+    { media: "(prefers-color-scheme: light)", color: "#fbfaf8" },
   ],
   width: "device-width",
   initialScale: 1,
 };
 
-// no-flash theme init: runs before paint
-const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem('harara-theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`;
+const THEME_INIT = `(function(){try{var t=localStorage.getItem('harara-theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`;
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${fraunces.variable} ${inter.variable}`}>
+    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
       </head>
-      <body>
-        <a href="#results" className="skip-link">
-          Skip to results
-        </a>
+      <body className="font-sans">
+        <a href="#main" className="skip-link">Skip to content</a>
         {children}
       </body>
     </html>
