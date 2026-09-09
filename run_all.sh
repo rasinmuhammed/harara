@@ -37,6 +37,7 @@ if [[ $FETCH -eq 1 ]]; then
       --out data/othh_metar_hourly.csv
   run scripts/fetch_openmeteo_forecast_archive.py --start 2022-01-01 \
       --end 2026-08-31 --out data/doha_forecast_archive.csv
+  run scripts/fetch_previous_runs.py --start 2024-01-01 --end 2026-08-30
   if [[ $GEFS_BACKFILL -eq 1 ]]; then
     run scripts/fetch_gefs_reforecast.py --start-year 2000 --end-year 2019 \
         --months 6 7 8 9 --newest-first --workers 24
@@ -66,6 +67,10 @@ run scripts/train_layer1_v2_nwp.py
 run_if data/gefs scripts/gefs_calibration.py
 run_if data/gefs scripts/gefs_reliability_study.py
 run_if data/gefs_emos.json scripts/scheduler_study.py --uncertainty gefs
+
+# ------------------------------------------------ 5b. AI weather models (H-E)
+# Reads data/previous_runs/ (fetched in stage 1, or reuse with --no-fetch).
+run_if data/previous_runs scripts/aiwp_humid_heat_study.py
 
 # ---------------------------------------------------------------- 6. contributions
 run scripts/scheduler_study.py

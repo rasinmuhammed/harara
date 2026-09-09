@@ -183,6 +183,104 @@ The reanalysis carries a stationary bias of about +1 C in air temperature and
 about -0.75 C in wet-bulb on normal days. A fixed offset correction is a
 modest, legitimate accuracy gain.
 
+### 5.6 AI weather models for Gulf humid heat
+
+**H-E: AI weather prediction models degrade humid-heat stop-work decisions
+relative to conventional NWP.** Kong et al. (2025, arXiv 2504.21195) report
+that GraphCast, Pangu-Weather and NOAA GEFS carry a consistent regional cold
+bias in 2 m temperature in the days before CONUS heat-wave onset. A cold bias
+before extreme heat is the dangerous direction. Whether this holds for humid
+heat (WBGT) in the Gulf, and whether it produces missed stop-work decisions at
+the 32.1 C threshold, had not been tested. `scripts/aiwp_humid_heat_study.py`.
+
+**Data.** Archived past model runs for the Doha grid point from Open-Meteo's
+Previous Runs API (`scripts/fetch_previous_runs.py`), at nominal leads of 1 to
+7 days: ECMWF IFS-HRES (`ecmwf_ifs025`), ECMWF AIFS Single
+(`ecmwf_aifs025_single`), NOAA GraphCast (`gfs_graphcast025`) and NOAA GFS
+(`gfs_seamless`). GraphCast on this feed serves only 2 m temperature and cloud,
+so it cannot yield a WBGT forecast; the study runs a WBGT track (IFS, AIFS,
+GFS) and a 2 m-temperature track (all four). WBGT is computed from each
+model's fields through the same Liljegren pipeline as the truth
+(`src/forecast_wbgt.py`). Scoring is walk-forward against the METAR-patched
+observational truth, warm-season (May to September) daylight hours (local
+07:00 to 18:00), with a one-day moving-block bootstrap for 95% intervals. AIFS
+starts only in February 2025 on this feed (about 1.5 warm seasons), so the
+headline tables score every model on the common window per lead; a full-window
+appendix covers IFS and GFS. Heat-wave onset is the first day of a run of at
+least two consecutive days whose daily-maximum WBGT is at or above the 90th
+percentile of strictly prior years, the preceding day below it.
+
+**WBGT track (common window, warm-season daylight, leads 1 to 7).**
+
+| Model | Bias (C) | Miss rate at 32.1 C | FPR |
+|---|---|---|---|
+| IFS | +0.7 to +0.9 | 0.06 (L1) to 0.15 (L7) | 0.18 to 0.21 |
+| AIFS | +0.66 to +0.69 | 0.09 (L1) to 0.13 (L7) | 0.14 to 0.15 |
+| GFS | -0.25 to -0.73 | **0.40 to 0.44, every lead** | 0.04 to 0.09 |
+
+The AI model, AIFS, is statistically indistinguishable from IFS on the miss
+rate: the paired AIFS - IFS difference is +0.03 at leads 1 to 3 (interval just
+clear of zero) and not significant from lead 4. GFS misses about a third more
+true exceedance hours than either, at every lead, with the paired interval far
+from zero (Figure 6). Stratified by observed band at lead 5, GFS bias runs from
++1.0 C below 28 C to **-2.4 C above 34 C** -- worst exactly in the stop-work
+band -- while IFS stays between +0.4 and +1.0 C across all bands (Figure 10).
+
+**The cold-bias direction, on WBGT.** In the five days before a heat-wave
+onset, GFS WBGT bias is -0.85 to -1.05 C against an all-days bias of -0.25 to
+-0.73 C: its cold bias worsens ahead of heat waves, the published direction.
+IFS and AIFS show no such excursion; both stay warm-biased (Figure 8). Leads
+are capped at 7 days here, so the 8 to 10 day part of the published window is
+not probed; this is bias at leads 1 to 7 for forecasts valid in the days
+before onset, not a full replication.
+
+**2 m temperature track (the direct replication).** Here the published finding
+does appear for AIFS: 2 m temperature bias of -1.4 to -1.7 C, missing about 97
+to 100% of hours above the prior-years 95th percentile (about 42.5 C). GFS is
+also cold (-1.2 to -2.0 C); a cold bias is therefore not unique to the AI
+model. IFS runs warm (+0.8 to +1.1 C). GraphCast runs **warm** on this feed
+(+0.4 to +1.0 C), the opposite of the published sign, though its coverage is
+sparse and gappy and the common window falls to about 500 hours at some leads
+(Figure 9).
+
+**Why the WBGT and temperature results diverge for AIFS.** Component bias on
+the common window (lead 1, core daylight): AIFS air temperature -1.5 C,
+relative humidity **+6.2%**, wind -0.55 m/s. The natural wet-bulb term is 0.7
+of WBGT, so the humidity high bias more than offsets the air-temperature cold
+bias, leaving AIFS WBGT slightly warm (+0.66 C). GFS has the same air-
+temperature cold bias (-1.7 C) but only +1.6% on humidity, so it stays cold in
+WBGT. A cold air-temperature bias is not a cold humid-heat bias; the two must
+be evaluated separately.
+
+**GraphCast bound (synthetic).** Splicing GraphCast 2 m temperature into IFS
+humidity, wind and radiation (not any real system's output) gives a WBGT bias
+of +0.5 to +1.0 C and a miss rate of 0.15 to 0.28 -- safe-side, between IFS and
+GFS. GraphCast's temperature error is not a stop-work hazard in the cold
+direction.
+
+**Caveats.** AIFS has about 1.5 warm seasons; every AIFS number is flagged,
+though the miss-rate intervals ([0.07, 0.17] across leads) are tight enough to
+support "about IFS, well below GFS". IFS forecast 10 m wind runs -1.5 m/s
+against the METAR-patched truth, which inflates IFS forecast WBGT (safe-side);
+GFS forecast wind is close to truth (+0.16 m/s), so the GFS cold WBGT bias is
+not a wind artefact. Shoulder months (April, October) carry only about 30
+daylight exceedance hours across the whole forecast era and are not scored. The
+truth is one station's patched series; the repo's 2000-2019 GEFS reforecast
+(Section 6) is the decade-scale complement for the GFS family, and its
+ensemble-mean WBGT RMSE of about 1.3 C at day +1 is consistent with the 1.0 to
+1.2 C deterministic-GFS MAE here.
+
+**Verdict: H-E rejected.** The AI model does not degrade humid-heat stop-work
+decisions relative to conventional NWP; AIFS matches the best conventional
+model (IFS) at the 32.1 C threshold and clearly beats the other (GFS). The
+operational consequence runs the other way: NOAA GFS WBGT is unreliable at the
+stop-work threshold -- it misses about four in ten true exceedance hours at all
+leads and gets colder before heat waves -- and ECMWF IFS or AIFS should be
+preferred for Gulf humid-heat forecasting. The published cold-bias-before-heat-
+wave result is real in air temperature but does not by itself indicate a humid-
+heat forecasting hazard; humidity compensation has to be accounted for, and the
+metric that matters is WBGT at the decision threshold.
+
 ## 6. GEFS v12 reforecast integration
 
 A multi-year forecast-reliability study on the Open-Meteo forecast archive is
