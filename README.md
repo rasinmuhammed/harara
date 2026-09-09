@@ -112,32 +112,42 @@ are present.
 
 ## Live demo
 
-An MVP that makes the scheduler tangible: a small FastAPI service over the
-deterministic core, and a single-screen web app that shows the hour-by-hour
-WBGT forecast for a chosen day and location, the optimiser's work/rest plan
-against the fixed 10:00-15:30 calendar ban, and the peak/tail heat-load
-comparison at equal work output.
+The scheduler is exposed three ways: a FastAPI service (`api/`), a chat product
+app, and a public site (`web/`). The site has a landing page that explains the
+problem in under a minute, a chat interface where you describe a shift in plain
+words and get an explanation with an inline result artifact, and animated
+day-chart artifacts that compare the plan with the fixed 10:00-15:30 calendar
+ban at equal work-hours.
 
-- **Web:** _(deploy URL — Vercel)_
-- **API:** _(deploy URL — Render)_
+The language model only turns a request into a validated call and turns the
+result into sentences. Every number in every answer and artifact comes from the
+deterministic API, and the numeric guard stays in force on generated text. The
+assistant fails closed: if a safety-relevant field is missing it asks one
+question rather than guess. The individual digital-twin work does not appear on
+the site.
 
-Run both locally:
+- **Site:** _(deploy URL, Vercel)_
+- **API:** _(deploy URL, Render)_
+
+Run locally:
 
 ```bash
-# API (repo root)
+# API, from the repo root
 pip install -r api/requirements.txt
-HARARA_FORECAST_SOURCE=mock uvicorn api.main:app --port 8000   # drop the env var for real forecasts
+HARARA_FORECAST_SOURCE=mock uvicorn api.main:app --port 8000
+#   drop HARARA_FORECAST_SOURCE for real Open-Meteo forecasts
+#   set HARARA_LLM=anthropic (with ANTHROPIC_API_KEY) for a conversational
+#   assistant; "mock" (default) runs offline with a deterministic summary
 
-# Web (separate shell)
+# Web, separate shell
 cd web && pnpm install
 echo "API_BASE=http://127.0.0.1:8000" > .env.local
-pnpm dev            # http://localhost:3000  (add ?demo=1 to auto-run a Doha plan)
+pnpm dev            # http://localhost:3000 , chat app at /app
 ```
 
 `api/README.md` and `web/README.md` have the deploy steps; `web/DESIGN.md`
-documents the design system. The MVP is the scheduler exposed as a service and
-UI — it introduces no new result. The digital twin is deliberately absent, and
-every claim on the page is one the ledger supports.
+documents the design system. This exposes the scheduler as a service, a chat
+app, and a public site; it introduces no new result.
 
 ## Status
 
