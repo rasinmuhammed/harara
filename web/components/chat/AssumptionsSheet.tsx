@@ -5,7 +5,7 @@ export function AssumptionsSheet() {
   return (
     <Dialog.Root>
       <Dialog.Trigger asChild>
-        <button type="button" className="rounded border border-border px-2.5 py-1.5 text-sm text-ink-secondary hover:border-border-strong hover:text-ink">
+        <button type="button" data-assumptions-trigger className="rounded border border-border px-2.5 py-1.5 text-sm text-ink-secondary hover:border-border-strong hover:text-ink">
           Assumptions
         </button>
       </Dialog.Trigger>

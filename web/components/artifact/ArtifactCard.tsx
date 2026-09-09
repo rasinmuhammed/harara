@@ -15,7 +15,15 @@ const chip = "rounded-full border px-2.5 py-1 text-sm transition-colors";
 const on = "border-accent bg-accent-weak text-ink";
 const off = "border-border text-ink-secondary hover:border-border-strong hover:text-ink";
 
-export function ArtifactCard({ plan: initial }: { plan: PlanResponse }) {
+export function ArtifactCard({
+  plan: initial,
+  embedded = false,
+}: {
+  plan: PlanResponse;
+  /** inside the /app frame the control bar owns day and work type, so the
+   *  card hides its own day and what-if rows to avoid two ways to set one thing */
+  embedded?: boolean;
+}) {
   const [theme] = useTheme();
   const [plan, setPlan] = useState(initial);
   const [focused, setFocused] = useState<number | null>(null);
@@ -102,7 +110,7 @@ export function ArtifactCard({ plan: initial }: { plan: PlanResponse }) {
           <button type="button" aria-pressed={policies.calendar} className={`${chip} ${policies.calendar ? on : off}`} onClick={() => setPolicies((p) => ({ ...p, calendar: !p.calendar }))}>fixed rule</button>
           <button type="button" aria-pressed={policies.reactive} className={`${chip} ${policies.reactive ? on : off}`} onClick={() => setPolicies((p) => ({ ...p, reactive: !p.reactive }))}>stop when hot</button>
         </div>
-        {canReplan && (
+        {canReplan && !embedded && (
           <>
             <div className="flex items-center gap-1.5">
               <span className="mono text-micro uppercase text-ink-muted">day</span>
@@ -127,7 +135,7 @@ export function ArtifactCard({ plan: initial }: { plan: PlanResponse }) {
           </>
         )}
       </div>
-      {canReplan && curLead >= 3 && !plan.meta.wide_band && (
+      {canReplan && !embedded && curLead >= 3 && !plan.meta.wide_band && (
         <p className="mono text-sm text-ink-muted">This far out the forecast is less certain. Check again the morning before.</p>
       )}
       {err && <p className="text-sm text-state-stop">Could not re-plan: {err}</p>}
