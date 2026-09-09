@@ -1,0 +1,18 @@
+# Render.com blueprint for the Harara scheduler API.
+#   1. Push the repo to GitHub.
+#   2. Render dashboard -> New -> Blueprint -> pick this repo.
+#   3. After the first deploy, set ALLOWED_ORIGINS to the deployed web URL.
+services:
+  - type: web
+    name: harara-api
+    runtime: docker
+    dockerfilePath: ./api/Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /api/health
+    autoDeploy: false
+    envVars:
+      - key: HARARA_FORECAST_SOURCE
+        value: open-meteo
+      - key: ALLOWED_ORIGINS
+        sync: false        # set in the dashboard, e.g. https://harara.vercel.app
