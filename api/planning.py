@@ -2,27 +2,22 @@
 Translate a PlanRequest into a PlanResponse.
 
 Flow: get_forecast -> compute_wbgt -> run_scheduler (the typed tool layer),
-then read the per-hour detail back out. RunSchedulerResponse exposes the
-plan's hourly work fraction and the aggregate peak/tail only, so the two
-per-hour retained-load paths and the calendar baseline's hourly fraction are
-re-derived here with the same two functions schedule_service uses internally --
-`policy_calendar` and `retained_load_path` -- applied to the response's own
-hours. No physics is added; the re-derived plan aggregates equal
-The headline peak/tail numbers in `summary` are taken straight from
-RunSchedulerResponse (`plan_*` and `baseline_*`, which is itself the
+then read the per-hour detail back out.
+
+The headline peak/tail numbers in `summary` come straight from
+RunSchedulerResponse (`plan_*` and `baseline_*`, the latter being the
 `policy_calendar` clock-ban baseline). Only the per-hour retained-load series
 for the chart and the calendar baseline's per-hour fraction are re-derived,
-with `policy_calendar` and `retained_load_path` -- the same functions
-schedule_service uses -- so a 3rd-decimal rounding drift on a chart point is
-possible but the summary is authoritative.
+with `policy_calendar` and `retained_load_path`, the same functions
+schedule_service uses internally, so a third-decimal rounding drift on a chart
+point is possible but the summary is authoritative.
 
-The comparison follows the walk-forward study in technical_report section 8:
-both policies deliver the SAME required work-hours, and neither is given a hard
-32.1 C stop. The calendar baseline is the fixed 10:00-15:30 midday ban
-(`policy_calendar`); the optimiser reshapes the day to minimise retained heat
-load at equal output. The 32.1 C stop-work line (Decision 17/2021) is reported
-per hour as `over_threshold` so the client can flag it -- the plan is the
-load-optimal shape, and the hard stop is applied on top by the operator.
+The comparison follows technical_report section 8: both policies deliver the
+same required work-hours, and neither is given a hard 32.1 C stop. The calendar
+baseline is the fixed 10:00-15:30 midday ban (`policy_calendar`); the optimiser
+reshapes the day to minimise retained heat load at equal output. Hours where
+the plan still schedules work above 32.1 C are reported as `over_threshold` so
+the client can flag them; the hard stop is applied on top by the operator.
 """
 
 from __future__ import annotations
@@ -35,7 +30,7 @@ from api.cache import forecast_cache
 from api.schemas import HourRow, PlanMeta, PlanRequest, PlanResponse, PlanSummary
 from src.agent.schemas import (
     ComputeWbgtRequest, CrewParams, GetForecastRequest, RuleConstraints,
-    RunSchedulerRequest, WbgtHour,
+    RunSchedulerRequest, RunSchedulerResponse, WbgtHour,
 )
 from src.agent.tools import compute_wbgt, get_forecast, run_scheduler
 from src.scheduler import PHI_DEFAULT, policy_calendar, retained_load_path
@@ -48,7 +43,7 @@ _FULL_WORK = 0.95   # plan fractions at/above this read as "work", below as "red
 _LEAD_NOTE = (
     "Single-point forecast for the chosen grid cell; nominal lead is the "
     "gap between today and the target date. Screening decision-support built "
-    "on the ACGIH TLV work/rest tables and Qatar Decision 17/2021 -- not "
+    "on the ACGIH TLV work/rest tables and Qatar Decision 17/2021, not "
     "medical advice, and not a substitute for on-site physiological "
     "monitoring."
 )
@@ -68,8 +63,14 @@ def _forecast(req: PlanRequest, source: str):
     return forecast_cache.get_or_set(key, produce)
 
 
-def build_plan(req: PlanRequest, *, forecast_source: str = "open-meteo",
-               wbgt_hours: list[WbgtHour] | None = None) -> PlanResponse:
+def plan_with_sched(
+    req: PlanRequest,
+    *,
+    forecast_source: str = "open-meteo",
+    wbgt_hours: list[WbgtHour] | None = None,
+) -> tuple[PlanResponse, RunSchedulerResponse]:
+    """The full plan plus the raw RunSchedulerResponse it was built from.
+    /api/chat needs the latter to hand to src.agent.brief.generate_briefing."""
     if wbgt_hours is None:
         fc = _forecast(req, forecast_source)
         wb = compute_wbgt(ComputeWbgtRequest(
@@ -98,15 +99,10 @@ def build_plan(req: PlanRequest, *, forecast_source: str = "open-meteo",
     # Decision 17/2021 baseline: the fixed 10:00-15:30 midday clock ban
     w_cal = policy_calendar(local_hours, np.ones(len(plan), dtype=bool))
 
-    # per-hour retained-load series for the chart (re-derived); the headline
+    # per-hour retained-load series for the chart (re-derived); headline
     # aggregates below come straight from the tool-layer response.
     path_plan = retained_load_path(w_plan, wbgt, phi=PHI_DEFAULT, wbgt_ref=wbgt_ref)
     path_cal = retained_load_path(w_cal, wbgt, phi=PHI_DEFAULT, wbgt_ref=wbgt_ref)
-
-    peak_plan = float(sched.plan_peak_strain)
-    peak_cal = float(sched.baseline_peak_strain)
-    tail_plan = float(sched.plan_tail_strain)
-    tail_cal = float(sched.baseline_tail_strain)
 
     def _state(frac: float) -> str:
         if frac <= 1e-9:
@@ -129,12 +125,14 @@ def build_plan(req: PlanRequest, *, forecast_source: str = "open-meteo",
     ]
 
     summary = PlanSummary(
-        peak_plan=round(peak_plan, 3),
-        peak_calendar=round(peak_cal, 3),
-        tail_plan=round(tail_plan, 3),
-        tail_calendar=round(tail_cal, 3),
-        pct_peak_reduction=round(_pct(peak_cal, peak_plan), 1),
-        pct_tail_reduction=round(_pct(tail_cal, tail_plan), 1),
+        peak_plan=round(float(sched.plan_peak_strain), 3),
+        peak_calendar=round(float(sched.baseline_peak_strain), 3),
+        tail_plan=round(float(sched.plan_tail_strain), 3),
+        tail_calendar=round(float(sched.baseline_tail_strain), 3),
+        pct_peak_reduction=round(
+            _pct(sched.baseline_peak_strain, sched.plan_peak_strain), 1),
+        pct_tail_reduction=round(
+            _pct(sched.baseline_tail_strain, sched.plan_tail_strain), 1),
         work_hours_delivered_plan=round(float(sched.work_hours_delivered), 2),
         work_hours_delivered_calendar=round(float(w_cal.sum()), 2),
         work_shortfall_plan=round(float(sched.work_shortfall), 2),
@@ -157,7 +155,13 @@ def build_plan(req: PlanRequest, *, forecast_source: str = "open-meteo",
                   "grid_note": "nearest forecast grid cell"},
         attribution="Weather data by Open-Meteo.com, CC BY 4.0",
     )
-    return PlanResponse(hours=hours, summary=summary, meta=meta)
+    return PlanResponse(hours=hours, summary=summary, meta=meta), sched
+
+
+def build_plan(req: PlanRequest, *, forecast_source: str = "open-meteo",
+               wbgt_hours: list[WbgtHour] | None = None) -> PlanResponse:
+    return plan_with_sched(
+        req, forecast_source=forecast_source, wbgt_hours=wbgt_hours)[0]
 
 
 def _pct(base: float, other: float) -> float:

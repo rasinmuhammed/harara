@@ -1,11 +1,13 @@
 """
-FastAPI app for the Harara scheduler MVP.
+FastAPI app for the Harara scheduler.
 
     uvicorn api.main:app --reload            # local, from the repo root
 
 Env:
     ALLOWED_ORIGINS   comma-separated CORS origins (default http://localhost:3000)
     HARARA_FORECAST_SOURCE   "open-meteo" (default) or "mock" for offline demos
+    HARARA_LLM   model adapter for /api/chat ("mock" default; "anthropic"/"k2"
+                 need their key in the environment, server-side only)
 """
 
 from __future__ import annotations
@@ -13,14 +15,17 @@ from __future__ import annotations
 import datetime as dt
 import os
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 
 from api import __version__
+from api.chat import chat_stream
 from api.planning import build_plan
+from api.ratelimit import chat_limiter
 from api.schemas import (
-    HealthResponse, ParseClarification, ParseParsed, ParseRequest, PlanRequest,
-    PlanResponse,
+    ChatRequest, HealthResponse, ParseClarification, ParseParsed, ParseRequest,
+    PlanRequest, PlanResponse,
 )
 from src.agent.parse import parse_scheduling_request
 from src.agent.schemas import ClarificationNeeded
@@ -76,3 +81,22 @@ def parse(req: ParseRequest):
         return ParseClarification(missing_fields=out.missing_fields,
                                   question=out.question)
     return ParseParsed(intent=out.intent.model_dump(mode="json"))
+
+
+@app.post("/api/chat")
+def chat(req: ChatRequest, request: Request):
+    ip = request.client.host if request.client else "unknown"
+    ok, retry_after = chat_limiter.check(ip)
+    if not ok:
+        raise HTTPException(
+            status_code=429,
+            detail={"error": "Too many requests. Wait a minute and try again.",
+                    "retry_after": retry_after},
+            headers={"Retry-After": str(retry_after)},
+        )
+    messages = [m.model_dump() for m in req.messages]
+    return StreamingResponse(
+        chat_stream(messages, req.context, forecast_source=FORECAST_SOURCE),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
