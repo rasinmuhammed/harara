@@ -260,3 +260,130 @@ one clean page of the shift card prints.
   labelled as a worked example, so the screen is never blank.
 - The replay section shows a seven-card skeleton while loading and a plain
   "needs the API" line on failure.
+
+---
+
+# v2: abstract visual system and the enterprise /app
+
+This section supersedes "The hero visual" above: the hero no longer runs a
+WebGL fragment shader. `three` and `@react-three/fiber` were removed. The
+motif is now one Canvas-2D module used everywhere, which cut the landing's
+lazy JS and removed the headless-WebGL fragility, with the visual language
+unchanged.
+
+## Spacing scale
+
+A 4 px base. Use Tailwind's default steps, which are already 4 px multiples,
+and stay on this ladder:
+
+```
+4  8  12  16  24  32  48  64  96      (px)
+1  2  3   4   6   8   12  16  24      (tailwind step)
+```
+
+Component internals use 8 to 16. Section rhythm on the landing is `py-20`
+(80 px) with `py-24` (96 px) on the closing section. The /app frame uses 10
+to 16 for the bars and 24 for the result canvas gutter. Gaps, not per-element
+margins, set the spacing between siblings.
+
+## The heat-field motif
+
+One scalar field `f(x, y) = y - curve(x)`, where `curve(x)` is the day's WBGT
+profile normalised to 0..1 over 24..40 C. Iso-lines of `f` are isotherm
+bands; where the curve is high (hot midday) the bands crowd toward the top.
+Each band takes its colour from the WBGT ramp at the temperature it marks, and
+a brighter ridge sits where the field crosses 32.1 C.
+
+| module | role |
+|---|---|
+| `lib/heatField.ts` | pure: `sampleCurve`, `curveAt` (Catmull-Rom), `bandColor`, the per-variant constants. No React, no canvas. |
+| `components/visual/HeatField.tsx` | the Canvas-2D renderer. Props `wbgt`, `theme`, `variant`, `animate`. |
+| `components/visual/HeatFieldSVG.tsx` | the same motif as static SVG, for `opengraph-image.tsx` and `icon.tsx` (rendered by `next/og`, no canvas). |
+| `components/visual/ContourDivider.tsx` | one contour line as a section rule; draws in once on scroll, holds. |
+
+Variants (`VARIANTS` in `lib/heatField.ts`):
+
+| variant | bands | alpha ceiling | where |
+|---|---|---|---|
+| `hero` | 15 | 0.72 | landing hero backdrop |
+| `panel` | 11 | 0.60 | /app loading and empty states |
+| `divider` | 3 | 0.85 | (reserved) |
+
+Rules, enforced in the component:
+
+- **Never competes with text.** Per-band fill alpha is `ceiling x (0.05..0.08)`
+  and line alpha `ceiling x 0.22` (ridge `x 0.62`); a radial vignette fades the
+  field into `--bg` at the edges. Effective contrast against the background
+  stays under 8%.
+- **Pauses offscreen.** An `IntersectionObserver` stops the RAF loop when the
+  canvas leaves the viewport.
+- **Static under reduced conditions.** `prefers-reduced-motion` or `Save-Data`
+  (or `animate={false}`) means a single paint, no loop.
+- **DPR capped at 1.5.**
+- The OG/favicon SVG uses slightly higher fill opacity (`0.06..0.09`) because
+  it is a deliberate graphic, not an ambient layer.
+
+## The /app frame
+
+Three zones, top to bottom, in `components/app/AppShell.tsx`:
+
+1. **Top bar** — wordmark, a `⌘K` command-menu button, Assumptions, theme
+   toggle. `py-2.5`, one border.
+2. **Control bar** (`ControlBar.tsx`) — four value chips, each opening an
+   in-place popover, never a blocking modal. Each chip shows its current value
+   inline so the plan's inputs are always readable without opening anything.
+   The chip flashes on change.
+
+   | control | chip reads | popover |
+   |---|---|---|
+   | Location | `Doha` / `Custom site` | wide panel with the full `SiteMap` (the one control that opens wide) |
+   | Work type | `Heavy` / `Heavy · new crew` | the four plain-label cards + the acclimatisation switch |
+   | Day | `Today` / `Tomorrow` / `12 Sep` | today / +1 / +3 presets + a date input |
+   | Hours | `8 hours` | a `Stepper`, 1 to 12 |
+
+3. **Result canvas** — the artifact (`ArtifactCard embedded`), which hides its
+   own day and what-if rows because the control bar owns those. The app
+   auto-plans Doha / tomorrow / moderate / acclimatised / 8 h on load, so there
+   is a real result in zero clicks. A `?q=` share link hydrates it instead.
+
+Below the canvas: the `Composer` is docked; a collapsible `ChatPanel` holds the
+conversation, the confirm card, and the clarification card. A natural-language
+request updates the control chips, then plans, then streams the model's
+plain-language explanation into the panel. `Cmd/Ctrl-K` opens the command menu
+(jump to a preset location, change the day, open assumptions or the method).
+
+## Motion values
+
+| token | value | used for |
+|---|---|---|
+| `--dur-1` | 200 ms | control feedback, chip flash, popover open |
+| `--dur-2` | 400 ms | fades |
+| `--dur-3` | 600 ms | scroll reveals, the contour draw-in |
+| `--ease` | `cubic-bezier(0.22, 1, 0.36, 1)` | everything |
+
+The result canvas cross-fades between plan states (`opacity` 200 ms) rather
+than hard-cutting. The artifact expands to full screen through the existing
+Radix Dialog. All of it collapses to the final state under
+`prefers-reduced-motion` (the global rule in `globals.css` plus JS
+short-circuits in `useCountUp`, the `SmoothScroll` loader, and `HeatField`).
+
+## Component catalogue
+
+`components/ui/`, each designed for both themes. `/styleguide` (noindex, not
+linked) renders every one of these in its states.
+
+| component | file | variants / props | states |
+|---|---|---|---|
+| Button | `ui/Button.tsx` | `primary` \| `secondary` \| `ghost` \| `danger`; `sm` \| `md`; `asChild` | default, hover, focus-visible, active (translate-y), disabled |
+| Chip | `ui/Chip.tsx` | `as="button"` \| `"span"`; `active`, `flash` | default, hover, open (`active`), flash-on-change, focus-visible |
+| Popover | `ui/Popover.tsx` | Radix Popover; `align`, `sideOffset` | closed, open (rise 160 ms), collision-flipped |
+| Card | `ui/Card.tsx` | `tone="flat"` \| `"raised"` | static |
+| Switch | `ui/Switch.tsx` | `label`, `hint` | off, on, focus-visible, disabled |
+| Stepper | `ui/Stepper.tsx` | `min`, `max`, `step`, `unit` | default, at-min (dec disabled), at-max (inc disabled), active |
+| ThinkingIndicator | `chat/ThinkingIndicator.tsx` | `state` = parsing \| forecasting \| planning \| writing | step pending, current (pulse), done (check) |
+| ClarificationCard | `chat/ClarificationCard.tsx` | `question`, `missing[]` | static (fail-closed notice) |
+| ConfirmCard | `chat/ConfirmCard.tsx` | editable `Intent` | complete (Plan enabled), missing fields (Plan disabled, fields ringed) |
+| ArtifactCard | `artifact/ArtifactCard.tsx` | `embedded` | ready, re-planning (dimmed), error, expanded (full screen) |
+| HeadlineNumber | inside `ArtifactCard` | one sentence, `peak_plan` vs `peak_calendar` | static |
+| HeatField | `visual/HeatField.tsx` | `hero` \| `panel` \| `divider`; `animate` | animating (in view), paused (offscreen), static (reduced / Save-Data) |
+| ContourDivider | `visual/ContourDivider.tsx` | — | pre-view (drawn, held), draw-in on first view |
