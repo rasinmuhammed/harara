@@ -31,6 +31,10 @@ scratch/
 VISION.md
 docs/PROJECT_EXPLAINER.md
 
+# Preprint manuscript and its build artefacts. Kept out of the public repo
+# until the paper is posted; the companion code stays public under scripts/.
+paper/
+
 # Editor / assistant local state
 .claude/
 .vscode/
