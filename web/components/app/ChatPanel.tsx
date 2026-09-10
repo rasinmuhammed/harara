@@ -86,15 +86,6 @@ export function ChatPanel({ turns }: { turns: ChatTurn[] }) {
                     .join(" · ")}
                 </p>
               )}
-              {!t.streaming &&
-                !t.notice &&
-                !t.emergencyBanner &&
-                !t.clarification &&
-                !t.error &&
-                t.text &&
-                (t.sources?.length ?? 0) === 0 && (
-                  <p className="text-micro text-ink-muted">Source unavailable.</p>
-                )}
               {t.clarification && (
                 <div className="text-base leading-relaxed text-ink">
                   <p>{t.clarification.question}</p>

@@ -160,11 +160,15 @@ export function ArtifactCard({
       <ComparisonStrip s={s} showReactive={policies.reactive} />
 
       {plan.day_curve && plan.day_curve.points?.length === 24 && (
-        <details className="rounded-lg border border-border">
-          <summary className="cursor-pointer px-3 py-2 text-sm text-ink-secondary hover:text-ink">
-            Full day, 24-hour WBGT context
+        <details open className="rounded-lg border border-border-strong bg-surface">
+          <summary className="cursor-pointer px-3 py-2.5 hover:bg-surface-2">
+            <span className="mono text-micro uppercase tracking-wide text-accent">Research view</span>
+            <span className="ml-2 text-sm font-medium text-ink">The full 24-hour day</span>
+            <p className="mt-0.5 text-micro text-ink-muted">
+              The plan covers 05:00 to 18:00. This is the whole local day, the night included.
+            </p>
           </summary>
-          <div className="p-3 pt-1">
+          <div className="border-t border-border p-3">
             <FullDayPanel curve={plan.day_curve} theme={theme} />
           </div>
         </details>

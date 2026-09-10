@@ -256,17 +256,15 @@ export function AppShell() {
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         {/* LEFT: conversation + composer. Bottom on mobile, left on desktop. */}
         <aside className="flex h-[46vh] min-h-0 shrink-0 flex-col overflow-hidden border-t border-border lg:order-first lg:h-auto lg:w-[400px] lg:border-r lg:border-t-0 xl:w-[440px]">
-          <div className="flex items-center justify-between border-b border-border px-4 py-2">
-            <div>
+          <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-2.5">
+            <div className="min-w-0">
               <p className="eyebrow">Assistant</p>
-              <p className="text-micro text-ink-secondary">
-                This assistant is one application of the research. It plans shifts and answers heat, WBGT, forecast and rules questions for the Gulf.
+              <p className="mt-1 text-micro leading-relaxed text-ink-secondary">
+                One application of the research. It plans a shift and answers heat, WBGT,
+                forecast and outdoor-work rules questions for the Gulf, and nothing else.
               </p>
-              <p className="text-micro text-ink-secondary">
-                I answer questions about heat, WBGT, outdoor-work rules, and I can plan a shift. I don't do anything else.
-              </p>
-              <p className="text-micro text-ink-muted">
-                Prototype. The chat lives only in this tab and a refresh clears it. Harara keeps nothing.
+              <p className="mt-1 text-micro leading-relaxed text-ink-muted">
+                Prototype. The chat lives only in this tab; a refresh clears it and Harara keeps nothing.
               </p>
             </div>
             {turns.length > 0 && (
