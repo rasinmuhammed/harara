@@ -61,16 +61,37 @@ deterministic mock model -- it never guesses a safety-relevant field.
 
 ### `POST /api/chat` (streaming, SSE)
 
-`{ "messages": [...], "context": { "plan": {...}?, "gathering": bool? } }`.
+`{ "messages": [...], "context": { "req": {...}?, "plan": {...}?, "gathering": bool? } }`.
 Frames: `status`, `text` (word by word), `clarification`, `artifact` (the full
-`/api/plan` payload, including the worker-time summary fields), `error`,
-`done`. A scheduling request is parsed
-deterministically (fail-closed, gazetteer), planned, then explained; a
-question is answered by the configured model. The model never emits a number
-that reaches the client: plan figures come from the `artifact` frame and the
-explanation passes the numeric guard; a free-form answer may only quote the
-published regulatory constants and numbers already on screen, anything else
-degrades to a deterministic reply.
+`/api/plan` payload), `emergency` (a banner), `source` (`label`, `detail` for
+a grounded answer), `notice` (`out_of_scope` | `no_match`), `error`, `done`.
+
+The assistant is scope-locked. Every message is classified by keyword and
+pattern before any model call into `plan_request`, `weather_question`,
+`heat_safety_question`, `rules_question`, `about_harara`, `emergency` or
+`out_of_scope`. Out-of-scope and prompt-injection messages get one fixed
+reply, no model call. An emergency message gets a fixed knowledge-base
+first-response block with a banner. Heat, first-aid and "what is Harara"
+questions are served from a curated KB entry's own text with its source;
+rules questions from the rule store or a cited KB summary; weather questions
+from a forecast tool (`nowcast`, `coolest_window`, `climatology_compare`,
+`heat_trend`, `weekly_outlook`) as a deterministic sentence with its source.
+Only a multi-day forecast comparison is phrased by the model, and only after
+the numeric guard and an output scope guard pass. The model never emits a
+number that reaches the client.
+
+### `GET /api/nowcast`, `/api/coolest-window`, `/api/climatology`, `/api/heat-trend`
+
+`{ "lat", "lon" }` (plus `date` for coolest-window and climatology). The same
+deterministic tools the chat narrates: current WBGT and the ACGIH band; the
+coolest working hours and the 32.1 C crossings; the day's forecast peak
+against the 16-year distribution; warm-season stop-work hours per year over
+the Doha record. `502` if the forecast upstream fails.
+
+### `GET /api/chat-refusals`
+
+`{ "buckets": { "<intent>": <count> } }` for this process. Counts only, no
+message content.
 
 ### `GET /api/health`
 

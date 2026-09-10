@@ -616,17 +616,41 @@ allowed/blocked state, if peak or 90th-percentile tail retained load
 moves by more than 15%, if the number of stop-work hours changes, or if a
 work shortfall appears where there was none.
 
+**The conversational assistant** (`api/chat.py`, `api/chat_scope.py`,
+`api/kb.py`) is a bounded front end on top of the same core. Every message
+is classified by keyword and pattern, before any model call, into one of
+plan_request, weather_question, heat_safety_question, rules_question,
+about_harara, emergency, or out_of_scope. Only those buckets go further.
+Out-of-scope messages, including prompt-injection attempts
+(ignore-instructions, you-are-now, system-prompt extraction, role wrappers,
+base64), get one fixed reply and no model call. A message describing
+heat-illness signs gets a fixed first-response block from a curated
+knowledge-base entry, with a banner to call the local emergency number, and
+no model. Heat, first-aid, acclimatisation and "what is Harara" questions
+are answered by serving a retrieved KB entry's own text with its published
+source shown; the model does not paraphrase it. Rules questions return the
+Qatar rule from the rule store or a cited KB summary for the UAE and Saudi
+Arabia. Weather questions are answered by a deterministic sentence off one
+of five forecast tools (`nowcast`, `coolest_window`, `climatology_compare`,
+`heat_trend`, `weekly_outlook`), each with its source; only a multi-day
+comparison is phrased by the model, and only after passing the numeric
+guard and an output scope guard that rejects any reply drifting into code,
+prose forms, or other domains. Refusals are counted by intent bucket only,
+never by content.
+
 **Evaluation** (`eval/agent_eval.py`, four rule documents with
 hand-labelled gold records under `eval/agent_eval/rules/`, 18 natural-
-language requests, 10 briefing scenarios). Against the mock the layer
-scores field-level precision and recall of 1.0 on all four extracted
-constraint types with every citation resolving; outcome-exact-match 1.0
-over the 18 requests with every ambiguous request asking back; zero
-ungrounded numbers across 67 numeric tokens in generated briefings, with
-the numeric guard catching every injected number; and every rule
-reference resolving. These figures measure the plumbing and the guards,
-not the language model: the mock is a regex stand-in and the source
-documents use canonical phrasing.
+language requests, 10 briefing scenarios, and a scope-lock section). Against
+the mock the layer scores field-level precision and recall of 1.0 on all
+four extracted constraint types with every citation resolving;
+outcome-exact-match 1.0 over the 18 requests with every ambiguous request
+asking back; zero ungrounded numbers across 61 numeric tokens in generated
+briefings, with the numeric guard catching every injected number; every
+rule reference resolving; and, for the assistant, the fixed reply on every
+out-of-scope and injection prompt, the banner and first-response block on
+every emergency prompt, and a shown source on every grounded answer. These
+figures measure the plumbing and the guards, not the language model: the
+mock is a regex stand-in and the source documents use canonical phrasing.
 
 **Against a real model.** The layer was scored with K2-Horizon
 (`IFM/K2-Horizon-375B-A23B`, temperature 0) driving all four functions,
