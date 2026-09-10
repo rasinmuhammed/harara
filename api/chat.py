@@ -24,7 +24,7 @@ import re
 import time
 from collections.abc import Iterator
 
-from api.planning import plan_with_sched
+from api.planning import plan_with_sched, weekly_outlook
 from api.schemas import PlanRequest
 from src.agent.llm import GAZETTEER, get_llm
 from src.agent.parse import parse_scheduling_request
@@ -48,6 +48,10 @@ _CONST_OK = {
 _NUM_RE = re.compile(r"-?\d+(?:\.\d+)?")
 _STRIP_RE = re.compile(r"\b\d{1,2}:\d{2}\b|\d{4}-\d{2}-\d{2}|17/2021|\b\d{2}-\d{2}\b")
 _THINK = re.compile(r"<think>.*?</think>", re.S)
+_WEATHER_Q = re.compile(
+    r"\b(weather|forecast|outlook|hotter|cooler|cool(?:est|er)|hott?est|"
+    r"this week|next (?:few )?days|coming days|rest of the week|compared? to the "
+    r"week|wbgt (?:this|next|over)|which day|worst day|best day|how hot)\b", re.I)
 
 
 def _sse(obj: dict) -> str:
@@ -79,9 +83,10 @@ the user has not named; if they name another place, ask them to pick a known \
 site or drop a pin.{ctx}
 
 Choose one action:
-- "answer": the user greeted you, asked a general question, or asked about a \
-  plan already on screen. Reply in "say" (1 to 3 sentences). If a plan is \
-  given below, use its figures; otherwise do not state result numbers.
+- "answer": the user greeted you, asked a general question, asked about a plan \
+  already on screen, or asked about the weather or the week ahead. Reply in \
+  "say" (1 to 3 sentences). If a plan or a 7-day WBGT outlook is given below, \
+  use its figures; otherwise do not state result numbers.
 - "plan": the user is asking you, in this message, to build or change a plan, \
   AND you have all five things (fill them from the request and the current \
   controls). Put a one-line acknowledgement in "say" like "Building the plan \
@@ -382,6 +387,20 @@ def chat_stream(
         if plan_ctx:
             convo += ("\n\n[plan on screen, quote figures from here only]\n"
                       + json.dumps(plan_ctx, default=str))
+
+        # a weather / outlook question: hand the assistant a real multi-day
+        # WBGT outlook for the current site so it can compare days.
+        outlook = None
+        if _WEATHER_Q.search(text) and cur and cur.get("lat") is not None:
+            try:
+                outlook = weekly_outlook(float(cur["lat"]), float(cur["lon"]),
+                                         today=today, source=forecast_source)
+                convo += ("\n\n[7-day WBGT outlook for this site, daytime peak and "
+                          "mean per local day, quote figures from here only]\n"
+                          + json.dumps(outlook, default=str))
+            except Exception:
+                outlook = None
+
         yield _sse({"type": "status", "state": "parsing"})
         try:
             raw = llm.converse(_agent_sys(today, cur), convo, max_tokens=1400)
@@ -393,7 +412,7 @@ def chat_stream(
             say = _clean(str(obj.get("say") or ""))
             plan_now = obj.get("action") == "plan" and isinstance(obj.get("params"), dict)
             if not plan_now:
-                allowed = _CONST_OK | _plan_numbers(plan_ctx)
+                allowed = _CONST_OK | _plan_numbers(plan_ctx) | _plan_numbers(outlook)
                 yield from _stream_words(say if say and _numbers_ok(say, allowed)
                                          else _DET_ANSWER)
                 yield _sse({"type": "done"})

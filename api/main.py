@@ -23,7 +23,7 @@ from fastapi.responses import StreamingResponse
 
 from api import __version__
 from api.chat import chat_stream
-from api.planning import build_plan
+from api.planning import build_plan, weekly_outlook
 from api.ratelimit import chat_limiter
 from api.schemas import (
     ChatRequest, HealthResponse, ParseClarification, ParseParsed, ParseRequest,
@@ -116,6 +116,19 @@ def chat(req: ChatRequest, request: Request):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@app.get("/api/outlook")
+def outlook(lat: float, lon: float, days: int = 7):
+    """Daytime peak and mean WBGT per local day for the next `days` days at the
+    chosen grid cell. Shares the plan cache and the rate-limit fallback."""
+    today = dt.datetime.now(dt.timezone.utc).date()
+    days = max(1, min(int(days), 14))
+    try:
+        return weekly_outlook(lat, lon, today=today, source=FORECAST_SOURCE, days=days)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502,
+                            detail=f"could not build an outlook: {exc}") from exc
 
 
 @app.get("/api/replay")

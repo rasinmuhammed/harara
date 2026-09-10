@@ -107,6 +107,47 @@ def _forecast(req: PlanRequest, source: str):
     return fc, used["source"]
 
 
+def weekly_outlook(lat: float, lon: float, *, today: dt.date | None = None,
+                   tz: str = "Asia/Qatar", source: str = "open-meteo",
+                   days: int = 7) -> dict:
+    """Daily peak and mean WBGT for the next `days` local days at one grid cell.
+    Shares the plan's cache and the same rate-limit fallback. Used by the
+    assistant to answer 'how does tomorrow compare to the week'."""
+    import zoneinfo
+
+    today = today or dt.date.today()
+    glat, glon = _snap(lat), _snap(lon)
+    key = ("outlook", source, glat, glon, today.isoformat(), days)
+
+    def produce():
+        end = today + dt.timedelta(days=days)
+        try:
+            fc = get_forecast(GetForecastRequest(
+                lat=glat, lon=glon, start_date=today, end_date=end, source=source))
+            used = source
+        except Exception:
+            if source == "mock":
+                raise
+            fc = get_forecast(GetForecastRequest(
+                lat=glat, lon=glon, start_date=today, end_date=end, source="mock"))
+            used = "synthetic fallback (live forecast was rate-limited)"
+        wb = compute_wbgt(ComputeWbgtRequest(hours=fc.hours, lat=glat, lon=glon))
+        z = zoneinfo.ZoneInfo(tz)
+        by_day: dict[str, list[float]] = {}
+        for h in wb.hours:
+            loc = h.time_utc.astimezone(z)
+            if 5 <= loc.hour <= 19:
+                by_day.setdefault(loc.date().isoformat(), []).append(float(h.wbgt_c))
+        rows = [
+            {"date": d, "peak_wbgt": round(max(v), 1), "mean_wbgt": round(sum(v) / len(v), 1),
+             "over_threshold": bool(max(v) > THRESHOLD_C)}
+            for d, v in sorted(by_day.items()) if v
+        ][:days + 1]
+        return {"grid": {"lat": glat, "lon": glon}, "source": used, "days": rows}
+
+    return forecast_cache.get_or_set(key, produce)
+
+
 def _cycle(frac: float) -> str:
     if frac <= 1e-9:
         return "rest in shade"

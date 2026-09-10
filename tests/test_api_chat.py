@@ -190,3 +190,24 @@ def test_follow_up_question_about_a_plan_is_answered():
         types = [json.loads(l[6:])["type"] for l in r.iter_lines()
                  if l and l.startswith("data: ")]
     assert "text" in types and "artifact" not in types
+
+
+def test_outlook_endpoint_shape():
+    r = client.get("/api/outlook", params={"lat": 25.2854, "lon": 51.531})
+    assert r.status_code == 200
+    j = r.json()
+    assert j["days"] and all(
+        {"date", "peak_wbgt", "mean_wbgt", "over_threshold"} <= d.keys()
+        for d in j["days"]
+    )
+    assert 1 <= len(j["days"]) <= 15
+
+
+def test_weather_question_regex_and_number_guard():
+    from api.chat import _WEATHER_Q, _numbers_ok, _plan_numbers
+    assert _WEATHER_Q.search("how does tomorrow compare to the week?")
+    assert _WEATHER_Q.search("which day is the coolest?")
+    assert not _WEATHER_Q.search("plan a heavy shift tomorrow")
+    ol = {"days": [{"peak_wbgt": 34.1, "mean_wbgt": 30.9}]}
+    assert _numbers_ok("tomorrow peaks at 34.1, mean 30.9", _plan_numbers(ol))
+    assert not _numbers_ok("tomorrow peaks at 34.1", set())
