@@ -80,7 +80,14 @@ Only a multi-day forecast comparison is phrased by the model, and only after
 the numeric guard and an output scope guard pass. The model never emits a
 number that reaches the client.
 
-### `GET /api/nowcast`, `/api/coolest-window`, `/api/climatology`, `/api/heat-trend`
+The response also carries `day_curve` when a forecast was fetched: the full
+local 24-hour WBGT series for the day (`points[]` with `hour`, `wbgt_c`,
+`over_threshold`, `is_daylight` for 05:00 to 18:00), the coolest 3-hour
+working window, the hours over 32.1 C, the overnight minimum, and a note that
+night hours carry no solar term. It is a research context view, not part of
+the plan.
+
+### `GET /api/day-curve`, `/api/nowcast`, `/api/coolest-window`, `/api/climatology`, `/api/heat-trend`
 
 `{ "lat", "lon" }` (plus `date` for coolest-window and climatology). The same
 deterministic tools the chat narrates: current WBGT and the ACGIH band; the

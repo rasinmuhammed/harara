@@ -98,10 +98,31 @@ class PlanMeta(BaseModel):
     attribution: str
 
 
+class DayCurvePoint(BaseModel):
+    hour: int                          # 0 to 23, local
+    wbgt_c: float
+    over_threshold: bool               # wbgt_c > 32.1
+    is_daylight: bool                  # 05:00 to 18:00, the working window
+
+
+class DayCurve(BaseModel):
+    """A deterministic 24-hour WBGT context view for the chosen day, separate
+    from the daylight-scoped plan. Night hours carry no solar term."""
+    date: str
+    source: str
+    points: list[DayCurvePoint]
+    coolest_window: Optional[dict] = None      # {start, end, mean_wbgt} within 05-18
+    hours_over_threshold: list[str] = []
+    overnight_min_wbgt: float = 0.0
+    stays_hot_overnight: bool = False
+    solar_note: str = ""
+
+
 class PlanResponse(BaseModel):
     hours: list[HourRow]
     summary: PlanSummary
     meta: PlanMeta
+    day_curve: Optional[DayCurve] = None
 
 
 class ParseRequest(BaseModel):

@@ -25,8 +25,8 @@ from api import __version__
 from api.chat import chat_stream
 from api.chat_scope import counts as refusal_counts
 from api.planning import (
-    build_plan, climatology_compare, coolest_window, heat_trend, nowcast,
-    weekly_outlook,
+    build_plan, climatology_compare, coolest_window, day_curve, heat_trend,
+    nowcast, weekly_outlook,
 )
 from api.ratelimit import chat_limiter
 from api.schemas import (
@@ -154,6 +154,15 @@ def api_nowcast(lat: float, lon: float):
 def api_coolest_window(lat: float, lon: float, date: dt.date):
     today = dt.datetime.now(dt.timezone.utc).date()
     return _tool(coolest_window, lat=lat, lon=lon, date=date, today=today,
+                source=FORECAST_SOURCE)
+
+
+@app.get("/api/day-curve")
+def api_day_curve(lat: float, lon: float, date: dt.date):
+    """Full local 24-hour WBGT series for the day: a research context view,
+    separate from the daylight-scoped plan. Night hours carry no solar term."""
+    today = dt.datetime.now(dt.timezone.utc).date()
+    return _tool(day_curve, lat=lat, lon=lon, date=date, today=today,
                 source=FORECAST_SOURCE)
 
 

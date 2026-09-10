@@ -266,6 +266,81 @@ def coolest_window(lat: float, lon: float, date: dt.date, *,
     }
 
 
+_DAYLIGHT_LO, _DAYLIGHT_HI = 5, 18            # the plan's working window
+_SOLAR_NOTE = ("Night WBGT carries no solar load: the Liljegren globe term is "
+               "zero when the sun is down.")
+
+
+def day_curve(lat: float, lon: float, date: dt.date, *,
+              today: dt.date | None = None, source: str = "open-meteo",
+              tz: str = "Asia/Qatar") -> dict:
+    """The full local 24-hour WBGT series for `date` at one grid cell, a
+    research context view separate from the daylight-scoped plan. Shares the
+    plan cache and the rate-limit fallback. Deterministic, no model."""
+    import zoneinfo
+
+    glat, glon = _snap(lat), _snap(lon)
+    key = ("daycurve", source, glat, glon, date.isoformat())
+
+    def produce():
+        try:
+            fc = get_forecast(GetForecastRequest(
+                lat=glat, lon=glon, start_date=date - dt.timedelta(days=1),
+                end_date=date + dt.timedelta(days=1), source=source))
+            used = source
+        except Exception:
+            if source == "mock":
+                raise
+            fc = get_forecast(GetForecastRequest(
+                lat=glat, lon=glon, start_date=date - dt.timedelta(days=1),
+                end_date=date + dt.timedelta(days=1), source="mock"))
+            used = "synthetic fallback (live forecast was rate-limited)"
+        wb = compute_wbgt(ComputeWbgtRequest(hours=fc.hours, lat=glat, lon=glon))
+        z = zoneinfo.ZoneInfo(tz)
+        by_hour: dict[int, float] = {}
+        for h in wb.hours:
+            loc = h.time_utc.astimezone(z)
+            if loc.date() == date:
+                by_hour[loc.hour] = round(float(h.wbgt_c), 2)
+        if len(by_hour) < 24:
+            return {"available": False, "source": used,
+                    "note": "The forecast does not cover the full local day."}
+
+        points = [
+            {"hour": hh, "wbgt_c": by_hour[hh],
+             "over_threshold": bool(by_hour[hh] > THRESHOLD_C),
+             "is_daylight": _DAYLIGHT_LO <= hh <= _DAYLIGHT_HI}
+            for hh in range(24)
+        ]
+        work = list(range(_DAYLIGHT_LO, _DAYLIGHT_HI + 1))
+        best_lo, best_mean = work[0], float("inf")
+        for i in range(len(work) - 2):
+            run = work[i:i + 3]
+            m = sum(by_hour[h] for h in run) / 3.0
+            if m < best_mean:
+                best_mean, best_lo = m, run[0]
+        over = [f"{hh:02d}:00" for hh in range(24) if by_hour[hh] > THRESHOLD_C]
+        night = [by_hour[hh] for hh in (*range(19, 24), *range(0, 6))]
+        night_min = round(min(night), 1)
+        return {
+            "available": True,
+            "grid": {"lat": glat, "lon": glon},
+            "source": used,
+            "date": date.isoformat(),
+            "points": points,
+            "coolest_window": {
+                "start": f"{best_lo:02d}:00", "end": f"{best_lo + 3:02d}:00",
+                "mean_wbgt": round(best_mean, 1),
+            },
+            "hours_over_threshold": over,
+            "overnight_min_wbgt": night_min,
+            "stays_hot_overnight": bool(night_min > 30.0),
+            "solar_note": _SOLAR_NOTE,
+        }
+
+    return forecast_cache.get_or_set(key, produce)
+
+
 _CLIMO_PATH = pathlib.Path(__file__).resolve().parents[1] / "data" / "doha_wbgt_16yr.csv"
 _climo_cache: dict = {}
 
@@ -568,7 +643,20 @@ def plan_with_sched(
                  "acclimatised": req.acclimatised, "tz": req.tz},
         attribution="Weather data by Open-Meteo.com, CC BY 4.0",
     )
-    return PlanResponse(hours=hours, summary=summary, meta=meta), sched
+
+    # 24-hour context view, only when we fetched a forecast ourselves (the
+    # wbgt_hours override path carries only the working window).
+    curve = None
+    if fc is not None:
+        try:
+            dc = day_curve(req.lat, req.lon, req.date,
+                           today=today, source=forecast_source, tz=req.tz)
+            curve = dc if dc.get("available") else None
+        except Exception:
+            curve = None
+
+    return PlanResponse(hours=hours, summary=summary, meta=meta,
+                        day_curve=curve), sched
 
 
 def build_plan(req: PlanRequest, *, forecast_source: str = "open-meteo",
