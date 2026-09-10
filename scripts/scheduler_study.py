@@ -6,17 +6,24 @@ under an uncertain WBGT forecast beat the alternatives, out of sample?
 
 Policies, each given only information available at planning time:
   calendar        Qatar 17/2021 style fixed midday ban
+  earlier_start   plain fixed block from the first allowed hour, pausing only
+                  for hours over the 32.1 C hard stop  (a real baseline)
   reactive        smart-reactive: coolest safe hours first (point forecast)
-  deterministic   the CVaR LP with ONE scenario = the point forecast
-  stochastic      the CVaR LP with K analog forecast scenarios
-  clairvoyant     the CVaR LP with the TRUE realized WBGT  (oracle bound)
+  optimiser       the CVaR LP solved inside an outer search over on-site
+                  windows, span-capped at W_REQ + 2 h, at most 2 work blocks
+  clairvoyant     the same windowed optimiser on the TRUE realized WBGT
+  deterministic / stochastic   the bare CVaR LP (1 scenario / K analog
+                  scenarios), kept only for the hedging-value paired line
 
 Each planned schedule is scored against the ACTUAL realized hourly WBGT
 for that day (patched reanalysis). We report, per policy:
   - mean and 90th-pct peak thermal load  (lower = safer)
-  - regret vs clairvoyant
+  - mean cumulative exposure (time-integrated heat dose over worked time)
+  - mean on-site span hours, on-site rest hours, and work-block count
   - % of days the work requirement was not met
 with moving-block-bootstrap 95% CIs, for lead times of 24 / 48 / 72 h.
+A hard check confirms the optimiser never keeps a crew on site longer,
+resting in the heat longer, or in more pieces than the calendar rule.
 
 With --uncertainty gefs the scenarios come from the calibrated GEFS v12
 reforecast lagged ensemble (src.forecast_uncertainty.GEFSEnsembleModel +
@@ -44,8 +51,10 @@ sys.path.insert(0, str(REPO / "scripts"))
 from src.forecast_uncertainty import AnalogResidualModel, GEFSEnsembleModel
 from src.scheduler import (
     PHI_DEFAULT, WBGT_REF_DEFAULT,
+    _work_blocks, _worked_span, cumulative_exposure,
     policy_calendar, policy_cvar, policy_deterministic,
-    policy_clairvoyant, policy_reactive, realized_strain,
+    policy_clairvoyant, policy_earlier_start, policy_reactive,
+    realized_strain, schedule_windowed,
 )
 from src.solar import cos_solar_zenith_angle
 from src.wbgt import wbgt_liljegren_c
@@ -108,6 +117,15 @@ def load_day_grids():
     return pd.DataFrame(list(days.values())).sort_values("date").reset_index(drop=True)
 
 
+def _shape(w):
+    """(worked span hours, on-site rest hours, number of work blocks) for a
+    schedule. Span is last worked hour minus first worked hour; on-site rest is
+    span minus effective work delivered; a block is a maximal run of worked
+    hours. These are the axes the worker actually feels."""
+    span = _worked_span(w)
+    return span, max(0.0, span - float(np.sum(w))), len(_work_blocks(w))
+
+
 def block_ci(x, stat=np.mean, block=7, n=2000):
     x = np.asarray(x, float)
     x = x[~np.isnan(x)]
@@ -151,39 +169,72 @@ def main():
             scen = model.scenarios(np.datetime64(d), row["month"], fc,
                                    k=K_SCEN, month_window=1)
 
+            windo = schedule_windowed(scen, allowed, W_REQ, wbgt_point=fc,
+                                      beta=BETA)
+            clair_r = schedule_windowed(truth[None, :], allowed, W_REQ,
+                                        wbgt_point=truth, beta=BETA)
             pol_w = {
                 "calendar": policy_calendar(row["local_hour"], allowed),
                 "reactive": policy_reactive(fc, allowed, W_REQ),
+                "earlier_start": policy_earlier_start(fc, allowed, W_REQ),
                 "deterministic": policy_deterministic(fc, allowed, W_REQ, beta=BETA),
                 "stochastic": policy_cvar(scen, allowed, W_REQ, beta=BETA),
-                "clairvoyant": policy_clairvoyant(truth, allowed, W_REQ, beta=BETA),
+                "optimiser": windo.w,
+                "clairvoyant": clair_r.w,
             }
             row_out = {"date": d}
             for name, w in pol_w.items():
                 row_out[f"strain_{name}"] = realized_strain(w, truth)
+                row_out[f"dose_{name}"] = cumulative_exposure(w, truth)
                 row_out[f"short_{name}"] = max(0.0, W_REQ - w.sum())
+                sp, rest, nb = _shape(w)
+                row_out[f"span_{name}"] = sp
+                row_out[f"rest_{name}"] = rest
+                row_out[f"blocks_{name}"] = nb
             recs.append(row_out)
         R = pd.DataFrame(recs)
 
-        clair = R["strain_clairvoyant"].to_numpy()
+        table = ["calendar", "earlier_start", "reactive", "optimiser", "clairvoyant"]
         print(f"================  LEAD {24*lead}h  (n={len(R)} test days)  ================")
-        print(f"  {'policy':<14}{'mean strain':>13}{'  [95% CI]':<18}"
-              f"{'p90 strain':>12}{'mean regret':>13}{'unmet %':>9}")
-        for name in ["calendar", "reactive", "deterministic", "stochastic", "clairvoyant"]:
+        print(f"  {'policy':<14}{'peak':>7}{'  [95% CI]':<16}{'p90':>7}"
+              f"{'dose':>8}{'span h':>8}{'rest h':>8}{'blocks':>8}{'unmet':>7}")
+        for name in table:
             s = R[f"strain_{name}"].to_numpy()
             lo, hi = block_ci(s)
-            regret = np.nanmean(s - clair)
             unmet = np.mean(R[f"short_{name}"].to_numpy() > 0.05) * 100
-            print(f"  {name:<14}{np.nanmean(s):>13.2f}"
-                  f"{f'  [{lo:.2f},{hi:.2f}]':<18}"
-                  f"{np.nanpercentile(s,90):>12.2f}{regret:>13.2f}{unmet:>8.0f}%")
-        # paired improvement: stochastic vs deterministic and vs calendar
-        for base in ["deterministic", "calendar", "reactive"]:
-            dpair = R[f"strain_{base}"] - R["strain_stochastic"]
+            print(f"  {name:<14}{np.nanmean(s):>7.2f}"
+                  f"{f'  [{lo:.2f},{hi:.2f}]':<16}"
+                  f"{np.nanpercentile(s, 90):>7.2f}"
+                  f"{R[f'dose_{name}'].mean():>8.1f}"
+                  f"{R[f'span_{name}'].mean():>8.1f}"
+                  f"{R[f'rest_{name}'].mean():>8.1f}"
+                  f"{R[f'blocks_{name}'].mean():>8.2f}"
+                  f"{unmet:>6.0f}%")
+
+        # honest headline: the optimiser against the rules it is compared with
+        for base in ["calendar", "earlier_start"]:
+            dpair = R[f"strain_{base}"] - R["strain_optimiser"]
             lo, hi = block_ci(dpair.to_numpy())
-            print(f"    stochastic vs {base:<13}: mean strain reduction "
-                  f"{dpair.mean():+.2f}  [{lo:+.2f},{hi:+.2f}]  "
-                  f"({dpair.mean()/R[f'strain_{base}'].mean()*100:+.0f}%)")
+            pct = dpair.mean() / R[f"strain_{base}"].mean() * 100
+            print(f"    optimiser vs {base:<13}: mean peak reduction "
+                  f"{dpair.mean():+.2f}  [{lo:+.2f},{hi:+.2f}]  ({pct:+.0f}%)")
+        dpair = R["strain_deterministic"] - R["strain_stochastic"]
+        lo, hi = block_ci(dpair.to_numpy())
+        print(f"    stochastic vs deterministic (bare LP): {dpair.mean():+.2f}  "
+              f"[{lo:+.2f},{hi:+.2f}]  "
+              f"({dpair.mean() / R['strain_deterministic'].mean() * 100:+.0f}%)")
+
+        # hard guarantee: never worse for the worker than the calendar rule
+        viol = R[(R["span_optimiser"] > R["span_calendar"] + 1e-6)
+                 | (R["rest_optimiser"] > R["rest_calendar"] + 1e-6)
+                 | (R["blocks_optimiser"] > R["blocks_calendar"])]
+        print(f"    worker-time guarantee vs calendar: {len(viol)} / {len(R)} "
+              f"day(s) worse on span, on-site rest or blocks")
+        for _, v in viol.head(5).iterrows():
+            print(f"      {pd.Timestamp(v['date']).date()}  "
+                  f"span {v['span_optimiser']:.0f}/{v['span_calendar']:.0f}  "
+                  f"rest {v['rest_optimiser']:.1f}/{v['rest_calendar']:.1f}  "
+                  f"blocks {v['blocks_optimiser']:.0f}/{v['blocks_calendar']:.0f}")
         print()
 
     print("=== LIMITATIONS ===")
