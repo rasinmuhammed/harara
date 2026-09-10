@@ -95,6 +95,9 @@ export type ChatFrame =
   | { type: "clarification"; question: string; missing_fields: string[] }
   | { type: "text"; delta: string }
   | { type: "artifact"; plan: PlanResponse }
+  | { type: "emergency"; banner: string }
+  | { type: "source"; label: string; detail?: string }
+  | { type: "notice"; kind: "out_of_scope" | "no_match" }
   | { type: "error"; message: string }
   | { type: "done" };
 
@@ -106,6 +109,9 @@ export interface ChatTurn {
   clarification?: { question: string; missing_fields: string[] };
   confirm?: { intent: any; locationSource: "map pin" | "your message" };
   artifact?: PlanResponse;
+  sources?: { label: string; detail?: string }[];
+  emergencyBanner?: string;
+  notice?: "out_of_scope" | "no_match";
   error?: string;
   streaming?: boolean;
 }

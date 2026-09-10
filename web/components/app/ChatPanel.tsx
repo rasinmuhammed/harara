@@ -32,10 +32,10 @@ export function ChatPanel({ turns }: { turns: ChatTurn[] }) {
         >
           H
         </div>
-        <p className="max-w-[36ch] text-base leading-relaxed">
-          Talk to the planner like a colleague. Ask why an hour is a rest hour,
-          what WBGT means, or describe the shift you need and it will build the
-          plan.
+        <p className="max-w-[38ch] text-base leading-relaxed">
+          Ask about heat and WBGT, the forecast for a site, whether it is safe to
+          work outside now, or the outdoor-work rules. Or describe a shift and it
+          will build the plan. Every answer shows its source.
         </p>
       </div>
     );
@@ -60,14 +60,41 @@ export function ChatPanel({ turns }: { turns: ChatTurn[] }) {
             </div>
             <div className="min-w-0 flex-1 space-y-2">
               {t.status && <ThinkingIndicator state={t.status} />}
-              {t.text && (
-                <div className="whitespace-pre-wrap text-base leading-relaxed text-ink">
-                  <GlossaryText text={t.text} />
-                  {t.streaming && (
-                    <span className="ml-0.5 inline-block h-4 w-[3px] animate-pulse rounded-sm bg-accent align-middle" />
-                  )}
-                </div>
+              {t.emergencyBanner && (
+                <p className="rounded-lg border border-[var(--state-stop)] bg-[var(--state-stop)]/10 p-3 text-sm font-medium text-ink">
+                  {t.emergencyBanner}
+                </p>
               )}
+              {t.text &&
+                (t.notice ? (
+                  <p className="rounded-lg border border-border bg-surface-2 p-3 text-sm text-ink-secondary">
+                    {t.text}
+                  </p>
+                ) : (
+                  <div className="whitespace-pre-wrap text-base leading-relaxed text-ink">
+                    <GlossaryText text={t.text} />
+                    {t.streaming && (
+                      <span className="ml-0.5 inline-block h-4 w-[3px] animate-pulse rounded-sm bg-accent align-middle" />
+                    )}
+                  </div>
+                ))}
+              {!t.streaming && (t.sources?.length ?? 0) > 0 && (
+                <p className="text-micro text-ink-muted">
+                  {t.sources!.length === 1 ? "Source: " : "Sources: "}
+                  {t.sources!
+                    .map((s) => (s.detail ? `${s.detail} (${s.label})` : s.label))
+                    .join(" · ")}
+                </p>
+              )}
+              {!t.streaming &&
+                !t.notice &&
+                !t.emergencyBanner &&
+                !t.clarification &&
+                !t.error &&
+                t.text &&
+                (t.sources?.length ?? 0) === 0 && (
+                  <p className="text-micro text-ink-muted">Source unavailable.</p>
+                )}
               {t.clarification && (
                 <div className="text-base leading-relaxed text-ink">
                   <p>{t.clarification.question}</p>

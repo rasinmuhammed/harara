@@ -381,6 +381,7 @@ def _handle_emergency() -> Iterator[str]:
 def _handle_kb(text: str) -> Iterator[str]:
     a = kb.answer(text)
     if not a:
+        yield _sse({"type": "notice", "kind": "no_match"})
         yield from _stream_words(NO_MATCH_REPLY)
         yield _sse({"type": "done"})
         return
@@ -414,6 +415,7 @@ def _handle_rules(text: str) -> Iterator[str]:
         yield from _emit_answer(e["text"], e["source"], e["title"])
         return
     if _OTHER_GULF.search(text):
+        yield _sse({"type": "notice", "kind": "no_match"})
         yield from _stream_words(
             "I have Qatar's rule in full, plus summaries for the UAE and Saudi "
             "Arabia. I don't have a confirmed rule for that country. Check the "
@@ -512,6 +514,7 @@ def _say_outlook(ol: dict, name: str) -> str:
 def _handle_weather(text: str, cur: dict | None, today: dt.date,
                     forecast_source: str, llm, llm_name: str) -> Iterator[str]:
     if not (cur and cur.get("lat") is not None):
+        yield _sse({"type": "notice", "kind": "no_match"})
         yield from _stream_words(
             "Tell me the site first, set it on the map or name a known one, and "
             "I will check the forecast.")
@@ -642,6 +645,7 @@ def chat_stream(
         yield from _handle_emergency()
         return
     if intent == "out_of_scope":
+        yield _sse({"type": "notice", "kind": "out_of_scope"})
         yield from _stream_words(OUT_OF_SCOPE_REPLY)
         yield _sse({"type": "done"})
         return

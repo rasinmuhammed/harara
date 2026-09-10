@@ -162,6 +162,15 @@ export function AppShell() {
             if (f.type === "status") patchTurn(b.id, (t) => ({ ...t, status: f.state }));
             else if (f.type === "text")
               patchTurn(b.id, (t) => ({ ...t, text: t.text + f.delta, status: undefined, streaming: true }));
+            else if (f.type === "emergency")
+              patchTurn(b.id, (t) => ({ ...t, emergencyBanner: f.banner, status: undefined }));
+            else if (f.type === "source")
+              patchTurn(b.id, (t) => ({
+                ...t,
+                sources: [...(t.sources ?? []), { label: f.label, detail: f.detail }],
+              }));
+            else if (f.type === "notice")
+              patchTurn(b.id, (t) => ({ ...t, notice: f.kind }));
             else if (f.type === "clarification")
               patchTurn(b.id, (t) => ({
                 ...t,
@@ -245,6 +254,9 @@ export function AppShell() {
           <div className="flex items-center justify-between border-b border-border px-4 py-2">
             <div>
               <p className="eyebrow">Assistant</p>
+              <p className="text-micro text-ink-secondary">
+                I answer questions about heat, WBGT, outdoor-work rules, and I can plan a shift. I don't do anything else.
+              </p>
               <p className="text-micro text-ink-muted">
                 Prototype. The chat lives only in this tab and a refresh clears it. Harara keeps nothing.
               </p>

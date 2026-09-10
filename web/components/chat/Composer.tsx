@@ -2,9 +2,11 @@
 import { useRef } from "react";
 
 const HINTS = [
-  "Plan tomorrow for a heavy crew at Lusail, 8 hours, new to the heat",
-  "Why does it rest in the afternoon?",
   "What is WBGT?",
+  "How does tomorrow compare to the week?",
+  "Is it safe to work outside in Doha right now?",
+  "Has heat been increasing here?",
+  "What's the rule in Qatar?",
 ];
 
 export function Composer({
@@ -45,7 +47,7 @@ export function Composer({
       <textarea
         ref={ref}
         rows={1}
-        placeholder="Ask about the plan, or describe a shift to plan"
+        placeholder="Ask about heat, the forecast or the rules, or describe a shift"
         aria-label="Message"
         onInput={(e) => {
           const el = e.currentTarget;
