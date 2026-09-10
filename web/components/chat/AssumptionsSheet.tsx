@@ -19,6 +19,7 @@ export function AssumptionsSheet() {
             </Dialog.Close>
           </div>
           <ul className="flex list-disc flex-col gap-3 pl-4 text-sm leading-relaxed text-ink-secondary">
+            <li><strong className="text-ink">Prototype, nothing is stored.</strong> The chat, the plan inputs, and the map pin live only in your browser tab. There is no account, and a refresh clears the conversation. Harara keeps no history on a server; a message is passed to the language-model provider once to generate the reply and is not retained by Harara.</li>
             <li><strong className="text-ink">Screening tool.</strong> Work and rest fractions come from the ACGIH TLV tables (ACGIH 2017, ISO 7243), which protect a population, not an individual. This is decision support, not medical advice, and not a substitute for on-site monitoring.</li>
             <li><strong className="text-ink">Single-point forecast.</strong> One Open-Meteo grid cell, hourly, for the chosen day. WBGT is computed with the Liljegren method through ECMWF thermofeel.</li>
             <li><strong className="text-ink">The 32.1 C line is drawn, not enforced.</strong> The plan minimises retained heat load at equal output. Hours where it still schedules work above 32.1 C are flagged. Decision 17/2021 requires the hard stop on top.</li>

@@ -241,14 +241,19 @@ export function AppShell() {
       {/* two panes: conversation on the left, the plan on the right */}
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         {/* LEFT: conversation + composer. Bottom on mobile, left on desktop. */}
-        <aside className="flex h-[46vh] shrink-0 flex-col border-t border-border lg:order-first lg:h-auto lg:w-[400px] lg:border-r lg:border-t-0 xl:w-[440px]">
+        <aside className="flex h-[46vh] min-h-0 shrink-0 flex-col overflow-hidden border-t border-border lg:order-first lg:h-auto lg:w-[400px] lg:border-r lg:border-t-0 xl:w-[440px]">
           <div className="flex items-center justify-between border-b border-border px-4 py-2">
-            <p className="eyebrow">Assistant</p>
+            <div>
+              <p className="eyebrow">Assistant</p>
+              <p className="text-micro text-ink-muted">
+                Prototype. The chat lives only in this tab and a refresh clears it. Harara keeps nothing.
+              </p>
+            </div>
             {turns.length > 0 && (
               <button
                 type="button"
                 onClick={() => setTurns([])}
-                className="text-sm text-ink-muted transition-colors hover:text-ink"
+                className="shrink-0 text-sm text-ink-muted transition-colors hover:text-ink"
               >
                 Clear
               </button>
