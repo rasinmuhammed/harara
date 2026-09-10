@@ -3,7 +3,6 @@
 import { useEffect, useRef } from "react";
 import { GlossaryText } from "@/components/GlossaryText";
 import { ThinkingIndicator } from "@/components/chat/ThinkingIndicator";
-import { ConfirmCard, type Intent } from "@/components/chat/ConfirmCard";
 import type { ChatTurn } from "@/lib/types";
 
 const FIELD_LABEL: Record<string, string> = {
@@ -18,15 +17,7 @@ const FIELD_LABEL: Record<string, string> = {
 
 /** The conversation list. Assistant on the left with an avatar mark, you on
  *  the right in an accent bubble. Sits in the left pane above the composer. */
-export function ChatPanel({
-  turns,
-  onConfirm,
-  onCancelConfirm,
-}: {
-  turns: ChatTurn[];
-  onConfirm: (id: string, intent: Intent) => void;
-  onCancelConfirm: (id: string) => void;
-}) {
+export function ChatPanel({ turns }: { turns: ChatTurn[] }) {
   const endRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
@@ -90,14 +81,6 @@ export function ChatPanel({
                     </p>
                   )}
                 </div>
-              )}
-              {t.confirm && (
-                <ConfirmCard
-                  intent={t.confirm.intent}
-                  locationSource={t.confirm.locationSource}
-                  onConfirm={(i) => onConfirm(t.id, i)}
-                  onCancel={() => onCancelConfirm(t.id)}
-                />
               )}
               {t.error && (
                 <p className="rounded-lg border border-[var(--state-stop)]/40 bg-surface-2 p-3 text-sm text-ink-secondary">

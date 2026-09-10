@@ -84,8 +84,9 @@ Choose one action:
   given below, use its figures; otherwise do not state result numbers.
 - "plan": the user is asking you, in this message, to build or change a plan, \
   AND you have all five things (fill them from the request and the current \
-  controls). "say" is ignored for this action; the plan and its numbers are \
-  shown to the user directly.
+  controls). Put a one-line acknowledgement in "say" like "Building the plan \
+  for heavy work at Lusail on Thursday now." Do NOT describe the schedule or \
+  put any hours or times in it; the plan and its numbers follow on their own.
 - otherwise use "answer" and ask for the one or two things still missing.
 
 Reply with ONLY this JSON, nothing else, no markdown:
@@ -138,7 +139,8 @@ def _resolve_location(name: str, cur: dict | None) -> tuple[float, float, str] |
     return None
 
 
-def _build_request(params: dict, cur: dict | None, today: dt.date) -> PlanRequest | str:
+def _build_request(params: dict, cur: dict | None,
+                   today: dt.date) -> tuple[PlanRequest, str] | str:
     loc = _resolve_location(str(params.get("location") or (cur or {}).get("name") or ""), cur)
     if loc is None:
         return ("I don't recognise that site. Name a known site (Doha, Lusail, "
@@ -169,7 +171,7 @@ def _build_request(params: dict, cur: dict | None, today: dt.date) -> PlanReques
         return "Has the crew been working in this heat for more than two weeks?"
 
     return PlanRequest(lat=lat, lon=lon, date=date, required_work_hours=hours,
-                       workload_class=wl, acclimatised=acc, tz="Asia/Qatar")
+                       workload_class=wl, acclimatised=acc, tz="Asia/Qatar"), name
 
 
 # --------------------------------------------------------------- deterministic
@@ -282,11 +284,11 @@ def _run_plan(intent, llm, llm_name: str, forecast_source: str,
                                "Try again in a moment."})
         yield _sse({"type": "done"})
         return
-    yield from _finish_plan(plan, sched, llm, llm_name, location_name, lead_in)
+    yield from _finish_plan(plan, sched, llm, llm_name, location_name, today, lead_in)
 
 
-def _run_request(req: PlanRequest, llm, llm_name: str, forecast_source: str,
-                 today: dt.date, lead_in: str) -> Iterator[str]:
+def _run_request(req: PlanRequest, name: str, llm, llm_name: str,
+                 forecast_source: str, today: dt.date, lead_in: str) -> Iterator[str]:
     try:
         yield _sse({"type": "status", "state": "forecasting"})
         yield _sse({"type": "status", "state": "planning"})
@@ -297,29 +299,40 @@ def _run_request(req: PlanRequest, llm, llm_name: str, forecast_source: str,
                                "Try again in a moment."})
         yield _sse({"type": "done"})
         return
-    name = (getattr(plan.meta, "location", {}) or {}).get("name") if isinstance(
-        getattr(plan.meta, "location", None), dict) else None
-    yield from _finish_plan(plan, sched, llm, llm_name, name or "the site", lead_in)
+    yield from _finish_plan(plan, sched, llm, llm_name, name or "the site", today, lead_in)
 
 
-def _headline(plan, location_name: str) -> str:
+def _nice_date(d: dt.date, today: dt.date) -> str:
+    delta = (d - today).days
+    if delta == 0:
+        return "today"
+    if delta == 1:
+        return "tomorrow"
+    return d.strftime("%A %d %B").replace(" 0", " ")
+
+
+def _headline(plan, location_name: str, today: dt.date | None = None) -> str:
     s = plan.summary
-    return (f"Here is the plan for {location_name} on {plan.meta.date.isoformat()}: "
+    when = _nice_date(plan.meta.date, today or dt.date.today())
+    return (f"Here is the plan for {location_name}, {when}: "
             f"the same {s.work_hours_delivered_plan:g} work-hours as the fixed "
             f"10:00 to 15:30 ban, with the worst retained heat load at "
             f"{s.peak_plan:.1f} against {s.peak_calendar:.1f}, "
-            f"{s.pct_peak_reduction:.0f} percent lower. The chart shows the hour by hour.")
+            f"{s.pct_peak_reduction:.0f} percent lower. The chart has the hour by hour.")
 
 
 def _finish_plan(plan, sched, llm, llm_name: str, location_name: str,
-                 lead_in: str = "") -> Iterator[str]:
-    """Stream the explanation then the artifact. The plan recap is always
-    deterministic and grounded: the model does not get to narrate the schedule,
-    the chart does that. `lead_in` is unused now, kept for signature stability."""
+                 today: dt.date, lead_in: str = "") -> Iterator[str]:
+    """Stream the explanation then the artifact. The model's one-line
+    acknowledgement runs first if it is clean; the plan recap that follows is
+    always the deterministic grounded headline, never a model narration."""
     yield _sse({"type": "status", "state": "writing"})
-    text = _plain_summary(plan, location_name) if llm_name == "mock" \
-        else _headline(plan, location_name)
-    yield from _stream_words(text)
+    parts = []
+    if lead_in and _numbers_ok(lead_in, _CONST_OK):
+        parts.append(lead_in.strip().rstrip(".") + ".")
+    parts.append(_plain_summary(plan, location_name) if llm_name == "mock"
+                 else _headline(plan, location_name, today))
+    yield from _stream_words(" ".join(parts))
     yield _sse({"type": "artifact", "plan": plan.model_dump(mode="json")})
     yield _sse({"type": "done"})
 
@@ -390,8 +403,9 @@ def chat_stream(
                 yield from _stream_words(say or built)
                 yield _sse({"type": "done"})
                 return
-            yield from _run_request(built, llm, llm_name, forecast_source, today,
-                                    lead_in=say)
+            req, name = built
+            yield from _run_request(req, name, llm, llm_name, forecast_source,
+                                    today, lead_in=say)
             return
         # obj is None: fall through to the deterministic path
 

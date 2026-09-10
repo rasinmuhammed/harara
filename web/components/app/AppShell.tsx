@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { fetchPlan, parsePlan, streamChat, type ChatMessageIn } from "@/lib/api";
+import { fetchPlan, streamChat, type ChatMessageIn } from "@/lib/api";
 import type { ChatFrame, ChatTurn, PlanResponse, WorkloadClass } from "@/lib/types";
 import { DOHA, LOCATION_PRESETS } from "@/lib/types";
 import { isoPlusDays } from "@/lib/format";
@@ -25,7 +25,6 @@ import { Button } from "@/components/ui/Button";
 import { ControlBar, type PlanReq } from "./ControlBar";
 import { ChatPanel } from "./ChatPanel";
 import { CommandMenu } from "./CommandMenu";
-import type { Intent } from "@/components/chat/ConfirmCard";
 
 let idc = 0;
 const nid = () => `a${++idc}`;
@@ -134,45 +133,6 @@ export function AppShell() {
         content: t.role === "assistant" && t.clarification ? t.clarification.question : t.text,
       }));
 
-  const applyIntent = useCallback(
-    async (botId: string, intent: Intent) => {
-      const patch: Partial<PlanReq> = {};
-      if (intent.target_local_date) patch.date = intent.target_local_date;
-      if (typeof intent.required_work_hours === "number") patch.required_work_hours = intent.required_work_hours;
-      if (intent.crew?.workload) patch.workload_class = intent.crew.workload;
-      if (typeof intent.crew?.acclimatised === "boolean") patch.acclimatised = intent.crew.acclimatised;
-      if (intent.location) {
-        patch.lat = intent.location.lat;
-        patch.lon = intent.location.lon;
-        setLocName(intent.location.name && intent.location.name !== "custom" ? intent.location.name : "Custom site");
-      }
-      patchTurn(botId, (t) => ({ ...t, confirm: undefined, streaming: true, status: "forecasting", text: "" }));
-      await replan(patch);
-
-      // the model's plain-language explanation, streamed into the same turn
-      setBusy(true);
-      abort.current = new AbortController();
-      try {
-        await streamChat(
-          history(),
-          (f: ChatFrame) => {
-            if (f.type === "status") patchTurn(botId, (t) => ({ ...t, status: f.state }));
-            else if (f.type === "text") patchTurn(botId, (t) => ({ ...t, text: t.text + f.delta, status: undefined }));
-            else if (f.type === "error") patchTurn(botId, (t) => ({ ...t, error: f.message, status: undefined }));
-            else if (f.type === "done") patchTurn(botId, (t) => ({ ...t, streaming: false, status: undefined }));
-          },
-          { signal: abort.current.signal, intent: intent as any },
-        );
-      } catch (e) {
-        patchTurn(botId, (t) => ({ ...t, error: (e as Error).message, streaming: false, status: undefined }));
-      } finally {
-        setBusy(false);
-        abort.current = null;
-      }
-    },
-    [replan, turns],
-  );
-
   const send = useCallback(
     async (text: string) => {
       if (busy) return;
@@ -181,23 +141,9 @@ export function AppShell() {
       setTurns((p) => [...p, u, b]);
       setBusy(true);
       try {
-        const res = await parsePlan(text);
-        if (res.outcome === "parsed") {
-          const it = res.intent as Intent;
-          const named = it.location?.name && it.location.name !== "custom";
-          if (!named) {
-            it.location = { name: "custom", lat: reqRef.current.lat, lon: reqRef.current.lon };
-          }
-          patchTurn(b.id, (t) => ({
-            ...t,
-            confirm: { intent: it, locationSource: named ? "your message" : "map pin" },
-            status: undefined,
-          }));
-          setBusy(false);
-          return;
-        }
-        // not a complete plan request: let the assistant handle it. It answers
-        // a question, updates the controls, or streams a clarification.
+        // everything goes to the assistant: it answers a question, asks in its
+        // own words for anything missing, or builds the plan and syncs the
+        // control chips.
         abort.current = new AbortController();
         const hist: ChatMessageIn[] = [...history(), { role: "user", content: text }];
         const gathering = turns.some((t) => t.role === "assistant" && t.clarification);
@@ -309,13 +255,7 @@ export function AppShell() {
             )}
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
-            <ChatPanel
-              turns={turns}
-              onConfirm={applyIntent}
-              onCancelConfirm={(id) =>
-                patchTurn(id, (t) => ({ ...t, confirm: undefined, text: "Cancelled." }))
-              }
-            />
+            <ChatPanel turns={turns} />
           </div>
           <Composer
             onSend={send}
