@@ -4,7 +4,6 @@ import { useEffect, useRef } from "react";
 import { GlossaryText } from "@/components/GlossaryText";
 import { ThinkingIndicator } from "@/components/chat/ThinkingIndicator";
 import { ConfirmCard, type Intent } from "@/components/chat/ConfirmCard";
-import { Button } from "@/components/ui/Button";
 import type { ChatTurn } from "@/lib/types";
 
 const FIELD_LABEL: Record<string, string> = {
@@ -17,99 +16,99 @@ const FIELD_LABEL: Record<string, string> = {
   location: "the site",
 };
 
-/** The conversation. Reads like a chat: assistant on the left, you on the
- *  right, one streaming reply at a time. */
+/** The conversation list. Assistant on the left with an avatar mark, you on
+ *  the right in an accent bubble. Sits in the left pane above the composer. */
 export function ChatPanel({
   turns,
-  open,
-  onClose,
   onConfirm,
   onCancelConfirm,
 }: {
   turns: ChatTurn[];
-  open: boolean;
-  onClose: () => void;
   onConfirm: (id: string, intent: Intent) => void;
   onCancelConfirm: (id: string) => void;
 }) {
   const endRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (open) endRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
-  }, [turns, open]);
+    endRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+  }, [turns]);
 
-  if (!open || turns.length === 0) return null;
+  if (turns.length === 0) {
+    return (
+      <div className="flex h-full flex-col items-start justify-center gap-3 px-4 py-6 text-ink-muted">
+        <div
+          aria-hidden
+          className="grid h-8 w-8 place-items-center rounded-full border border-border-strong text-sm font-semibold text-ink-secondary"
+        >
+          H
+        </div>
+        <p className="max-w-[36ch] text-base leading-relaxed">
+          Talk to the planner like a colleague. Ask why an hour is a rest hour,
+          what WBGT means, or describe the shift you need and it will build the
+          plan.
+        </p>
+      </div>
+    );
+  }
 
   return (
-    <div className="border-t border-border bg-bg-raised">
-      <div className="mx-auto flex max-w-3xl items-center justify-between px-4 pt-2.5">
-        <p className="eyebrow">Assistant</p>
-        <Button variant="ghost" size="sm" onClick={onClose}>
-          Hide
-        </Button>
-      </div>
-      <div className="mx-auto flex max-h-[46vh] max-w-3xl flex-col gap-3.5 overflow-y-auto px-4 py-3">
-        {turns.map((t) =>
-          t.role === "user" ? (
-            <div key={t.id} className="flex justify-end">
-              <div className="max-w-[85%] rounded-2xl rounded-br-md bg-accent-weak px-3.5 py-2 text-base text-ink">
-                {t.text}
-              </div>
+    <div className="flex flex-col gap-4 px-4 py-4">
+      {turns.map((t) =>
+        t.role === "user" ? (
+          <div key={t.id} className="flex justify-end">
+            <div className="max-w-[88%] rounded-2xl rounded-br-md bg-accent-weak px-3.5 py-2 text-base text-ink">
+              {t.text}
             </div>
-          ) : (
-            <div key={t.id} className="flex gap-2.5">
-              <div
-                aria-hidden
-                className="mt-1 grid h-6 w-6 shrink-0 place-items-center rounded-full border border-border-strong text-[11px] font-semibold text-ink-secondary"
-              >
-                H
-              </div>
-              <div className="min-w-0 flex-1 space-y-2">
-                {t.status && (
-                  <div className="pt-1">
-                    <ThinkingIndicator state={t.status} />
-                  </div>
-                )}
-                {t.text && (
-                  <div className="whitespace-pre-wrap text-base leading-relaxed text-ink">
-                    <GlossaryText text={t.text} />
-                    {t.streaming && (
-                      <span className="ml-0.5 inline-block h-4 w-[3px] animate-pulse rounded-sm bg-accent align-middle" />
-                    )}
-                  </div>
-                )}
-                {t.clarification && (
-                  <div className="text-base leading-relaxed text-ink">
-                    <p>{t.clarification.question}</p>
-                    {t.clarification.missing_fields.length > 0 && (
-                      <p className="mt-1 text-sm text-ink-muted">
-                        Add{" "}
-                        {t.clarification.missing_fields
-                          .map((f) => FIELD_LABEL[f] ?? f)
-                          .join(", ")}{" "}
-                        and send again. Nothing safety-relevant is assumed.
-                      </p>
-                    )}
-                  </div>
-                )}
-                {t.confirm && (
-                  <ConfirmCard
-                    intent={t.confirm.intent}
-                    locationSource={t.confirm.locationSource}
-                    onConfirm={(i) => onConfirm(t.id, i)}
-                    onCancel={() => onCancelConfirm(t.id)}
-                  />
-                )}
-                {t.error && (
-                  <p className="rounded-lg border border-[var(--state-stop)]/40 bg-surface-2 p-3 text-sm text-ink-secondary">
-                    {t.error}
-                  </p>
-                )}
-              </div>
+          </div>
+        ) : (
+          <div key={t.id} className="flex gap-2.5">
+            <div
+              aria-hidden
+              className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full border border-border-strong text-[11px] font-semibold text-ink-secondary"
+            >
+              H
             </div>
-          ),
-        )}
-        <div ref={endRef} />
-      </div>
+            <div className="min-w-0 flex-1 space-y-2">
+              {t.status && <ThinkingIndicator state={t.status} />}
+              {t.text && (
+                <div className="whitespace-pre-wrap text-base leading-relaxed text-ink">
+                  <GlossaryText text={t.text} />
+                  {t.streaming && (
+                    <span className="ml-0.5 inline-block h-4 w-[3px] animate-pulse rounded-sm bg-accent align-middle" />
+                  )}
+                </div>
+              )}
+              {t.clarification && (
+                <div className="text-base leading-relaxed text-ink">
+                  <p>{t.clarification.question}</p>
+                  {t.clarification.missing_fields.length > 0 && (
+                    <p className="mt-1 text-sm text-ink-muted">
+                      Add{" "}
+                      {t.clarification.missing_fields
+                        .map((f) => FIELD_LABEL[f] ?? f)
+                        .join(", ")}{" "}
+                      and send again. Nothing safety-relevant is assumed.
+                    </p>
+                  )}
+                </div>
+              )}
+              {t.confirm && (
+                <ConfirmCard
+                  intent={t.confirm.intent}
+                  locationSource={t.confirm.locationSource}
+                  onConfirm={(i) => onConfirm(t.id, i)}
+                  onCancel={() => onCancelConfirm(t.id)}
+                />
+              )}
+              {t.error && (
+                <p className="rounded-lg border border-[var(--state-stop)]/40 bg-surface-2 p-3 text-sm text-ink-secondary">
+                  {t.error}
+                </p>
+              )}
+            </div>
+          </div>
+        ),
+      )}
+      <div ref={endRef} />
     </div>
   );
 }

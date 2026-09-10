@@ -54,7 +54,6 @@ export function AppShell() {
   const [flash, setFlash] = useState<Partial<Record<FlashKey, boolean>>>({});
 
   const [turns, setTurns] = useState<ChatTurn[]>([]);
-  const [chatOpen, setChatOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [cmdk, setCmdk] = useState(false);
   const abort = useRef<AbortController | null>(null);
@@ -177,7 +176,6 @@ export function AppShell() {
   const send = useCallback(
     async (text: string) => {
       if (busy) return;
-      setChatOpen(true);
       const u: ChatTurn = { id: nid(), role: "user", text };
       const b: ChatTurn = { id: nid(), role: "assistant", text: "", status: "parsing" };
       setTurns((p) => [...p, u, b]);
@@ -273,8 +271,8 @@ export function AppShell() {
 
   // ---- render --------------------------------------------------------
   return (
-    <div className="mx-auto flex h-dvh max-w-5xl flex-col">
-      {/* zone 1: top bar */}
+    <div className="mx-auto flex h-dvh max-w-[1280px] flex-col">
+      {/* top bar, full width */}
       <header className="flex items-center justify-between border-b border-border px-4 py-2.5">
         <Link href="/" className="text-base font-semibold tracking-tight text-ink">
           Harara
@@ -294,61 +292,70 @@ export function AppShell() {
 
       <BackendNotice />
 
-      {/* zone 2: persistent control bar */}
-      <ControlBar
-        req={req}
-        locName={locName}
-        flash={flash}
-        onLocation={onLocation}
-        onWorkload={onWorkload}
-        onAcclimatised={onAcclimatised}
-        onDay={onDay}
-        onHours={onHours}
-      />
-
-      {/* zone 3: result canvas */}
-      <main id="main" className="flex-1 overflow-y-auto px-4 py-6">
-        <div className="mx-auto max-w-3xl">
-          {phase === "planning" && !plan && <PlanningState theme={theme} waking={waking} />}
-          {phase === "error" && (
-            <ErrorState message={err} onRetry={() => replan({})} />
-          )}
-          {plan && (
-            <div
-              className={
-                phase === "planning" && !reduced
-                  ? "opacity-60 transition-opacity duration-200"
-                  : "transition-opacity duration-200"
+      {/* two panes: conversation on the left, the plan on the right */}
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+        {/* LEFT: conversation + composer. Bottom on mobile, left on desktop. */}
+        <aside className="flex h-[46vh] shrink-0 flex-col border-t border-border lg:order-first lg:h-auto lg:w-[400px] lg:border-r lg:border-t-0 xl:w-[440px]">
+          <div className="flex items-center justify-between border-b border-border px-4 py-2">
+            <p className="eyebrow">Assistant</p>
+            {turns.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setTurns([])}
+                className="text-sm text-ink-muted transition-colors hover:text-ink"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <ChatPanel
+              turns={turns}
+              onConfirm={applyIntent}
+              onCancelConfirm={(id) =>
+                patchTurn(id, (t) => ({ ...t, confirm: undefined, text: "Cancelled." }))
               }
-              aria-busy={phase === "planning"}
-            >
-              <ArtifactCard key={plan.meta.date + plan.meta.location.lat} plan={plan} embedded />
-            </div>
-          )}
-        </div>
-      </main>
+            />
+          </div>
+          <Composer
+            onSend={send}
+            busy={busy}
+            onStop={stopChat}
+            showHints={turns.length === 0}
+          />
+        </aside>
 
-      {/* zone 4: chat, docked */}
-      <ChatPanel
-        turns={turns}
-        open={chatOpen}
-        onClose={() => setChatOpen(false)}
-        onConfirm={applyIntent}
-        onCancelConfirm={(id) => patchTurn(id, (t) => ({ ...t, confirm: undefined, text: "Cancelled." }))}
-      />
-      <div className="border-t border-border bg-bg">
-        <div className="mx-auto max-w-3xl">
-          {turns.length > 0 && !chatOpen && (
-            <button
-              type="button"
-              onClick={() => setChatOpen(true)}
-              className="w-full px-4 pt-2 text-left text-sm text-ink-muted hover:text-ink"
-            >
-              Show conversation ({turns.filter((t) => t.role === "user").length})
-            </button>
-          )}
-          <Composer onSend={send} busy={busy} onStop={stopChat} showHints={turns.length === 0} />
-        </div>
+        {/* RIGHT: control bar + result canvas */}
+        <section className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <ControlBar
+            req={req}
+            locName={locName}
+            flash={flash}
+            onLocation={onLocation}
+            onWorkload={onWorkload}
+            onAcclimatised={onAcclimatised}
+            onDay={onDay}
+            onHours={onHours}
+          />
+          <main id="main" className="min-h-0 flex-1 overflow-y-auto px-4 py-5">
+            <div className="mx-auto max-w-3xl">
+              {phase === "planning" && !plan && <PlanningState theme={theme} waking={waking} />}
+              {phase === "error" && <ErrorState message={err} onRetry={() => replan({})} />}
+              {plan && (
+                <div
+                  className={
+                    phase === "planning" && !reduced
+                      ? "opacity-60 transition-opacity duration-200"
+                      : "transition-opacity duration-200"
+                  }
+                  aria-busy={phase === "planning"}
+                >
+                  <ArtifactCard key={plan.meta.date + plan.meta.location.lat} plan={plan} embedded />
+                </div>
+              )}
+            </div>
+          </main>
+        </section>
       </div>
 
       <CommandMenu
