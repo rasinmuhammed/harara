@@ -9,6 +9,7 @@ import { encodeShare } from "@/lib/share";
 import type { PlanResponse } from "@/lib/types";
 import { DayChart, type Policies } from "./DayChart";
 import { ComparisonStrip } from "./ComparisonStrip";
+import { FullDayPanel } from "./FullDayPanel";
 import { RawTable } from "./RawTable";
 
 const chip = "rounded-full border px-2.5 py-1 text-sm transition-colors";
@@ -157,6 +158,17 @@ export function ArtifactCard({
 
       <DayChart hours={plan.hours} meta={plan.meta} theme={theme} focusedHour={focused} onFocusHour={setFocused} policies={policies} />
       <ComparisonStrip s={s} showReactive={policies.reactive} />
+
+      {plan.day_curve && plan.day_curve.points?.length === 24 && (
+        <details className="rounded-lg border border-border">
+          <summary className="cursor-pointer px-3 py-2 text-sm text-ink-secondary hover:text-ink">
+            Full day, 24-hour WBGT context
+          </summary>
+          <div className="p-3 pt-1">
+            <FullDayPanel curve={plan.day_curve} theme={theme} />
+          </div>
+        </details>
+      )}
 
       <details className="rounded-lg border border-border">
         <summary className="cursor-pointer px-3 py-2 text-sm text-ink-secondary hover:text-ink">Per-hour instructions</summary>

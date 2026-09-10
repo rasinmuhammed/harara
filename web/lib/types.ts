@@ -83,10 +83,29 @@ export interface PlanMeta {
   attribution: string;
 }
 
+export interface DayCurvePoint {
+  hour: number;            // 0 to 23, local
+  wbgt_c: number;
+  over_threshold: boolean;
+  is_daylight: boolean;    // 05:00 to 18:00
+}
+
+export interface DayCurve {
+  date: string;
+  source: string;
+  points: DayCurvePoint[];
+  coolest_window: { start: string; end: string; mean_wbgt: number } | null;
+  hours_over_threshold: string[];
+  overnight_min_wbgt: number;
+  stays_hot_overnight: boolean;
+  solar_note: string;
+}
+
 export interface PlanResponse {
   hours: HourRow[];
   summary: PlanSummary;
   meta: PlanMeta;
+  day_curve?: DayCurve | null;
 }
 
 // chat SSE frames
