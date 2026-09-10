@@ -16,6 +16,7 @@ export function Footer() {
         <p className="flex flex-wrap gap-x-4 gap-y-1">
           <a href="https://github.com/rasinmuhammed/harara/blob/main/docs/technical_report.md" target="_blank" rel="noreferrer" className="underline hover:text-ink-secondary">Technical report</a>
           <a href="https://github.com/rasinmuhammed/harara/blob/main/docs/results_ledger.md" target="_blank" rel="noreferrer" className="underline hover:text-ink-secondary">Results ledger</a>
+          <a href="https://github.com/rasinmuhammed/harara/blob/main/docs/PROJECT_EXPLAINER.md" target="_blank" rel="noreferrer" className="underline hover:text-ink-secondary">Project explainer</a>
           <a href="https://github.com/rasinmuhammed/harara" target="_blank" rel="noreferrer" className="underline hover:text-ink-secondary">Source</a>
           <span>MIT licence</span>
         </p>

@@ -38,31 +38,29 @@ export function Hero({ plan: initial }: { plan: PlanResponse | null }) {
       )}
 
       <div className="relative mx-auto max-w-content px-5 py-24 sm:py-32">
-        <p className="eyebrow">Forecast-driven heat safety</p>
-        <h1 className="mt-3 max-w-[18ch] text-h1 font-semibold text-ink">
-          The rule sets the limit. The forecast sets the plan.
+        <p className="eyebrow">Gulf humid-heat research</p>
+        <h1 className="mt-3 max-w-[22ch] text-h1 font-semibold text-ink">
+          Research on forecast-driven heat safety for outdoor work in the Gulf.
         </h1>
         <p className="mt-5 max-w-prose text-lg text-ink-secondary">
-          Qatar&apos;s Ministerial Decision 17/2021 protects outdoor crews with a
-          WBGT standard and a fixed midday rest window. Harara plans the working
-          day inside that rule from the daily forecast, so the crew spends less
-          time in the worst of the heat at the same total output.
+          Qatar&apos;s Ministerial Decision 17/2021 is the enforceable baseline: a
+          WBGT standard and a fixed midday rest window. This project studies what
+          a daily weather forecast adds on top of it, and reports what it does
+          not. Harara is the assistant built from that work.
         </p>
         <div className="mt-7 flex flex-wrap items-center gap-3">
-          <Link
-            href="/app"
+          <a
+            href="/#findings"
             className="rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-accent-ink transition-colors hover:bg-accent-hover"
           >
-            Open the planner
-          </Link>
-          <a
-            href="https://github.com/rasinmuhammed/harara/blob/main/docs/technical_report.md"
-            target="_blank"
-            rel="noreferrer"
+            See the findings
+          </a>
+          <Link
+            href="/app"
             className="rounded-lg border border-border px-4 py-2.5 text-sm text-ink-secondary transition-colors hover:border-border-strong hover:text-ink"
           >
-            Read the method
-          </a>
+            Open the assistant
+          </Link>
         </div>
         {peak != null && (
           <p className="mono mt-8 text-sm text-ink-muted">

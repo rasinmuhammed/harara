@@ -33,17 +33,17 @@ function MovingHours() {
 const BEATS = [
   {
     h: "Humid heat is harder on the body than the number suggests.",
-    p: "The body cools by sweating, and sweat only helps when it evaporates. In humid Gulf air it barely does, so the real physiological load is far higher than air temperature alone implies.",
+    p: "The body cools by sweating, and sweat only helps when it evaporates. In humid Gulf air it barely does, so the real physiological load is far higher than air temperature alone implies. WBGT is the index that captures this, and it is what the regulation is written against.",
     D: DryVsHumid,
   },
   {
-    h: "Fixed windows are a strong foundation.",
-    p: "Qatar's Ministerial Decision 17/2021 was a significant step forward, the first GCC regulation to adopt WBGT, a physiologically grounded heat-stress index, as its legal standard, alongside a fixed midday rest window.",
+    h: "Qatar's fixed window is a strong baseline.",
+    p: "Ministerial Decision 17/2021 was the first GCC regulation to adopt WBGT as its legal standard, with a WBGT stop-work line and a fixed midday rest window. It is simple and enforceable, and it is the baseline this research measures against.",
     D: FixedClock,
   },
   {
-    h: "Data makes that foundation smarter, every day.",
-    p: "The heat risk shifts with the forecast. Harara reads the day's actual conditions and distributes work and rest across the full day, extending protection without reducing output.",
+    h: "The question is what a daily forecast adds.",
+    p: "Heat risk shifts day to day with the weather. This project tests, on 16 years of data, where a forecast-driven layer genuinely helps and where it does not.",
     D: MovingHours,
   },
 ];
@@ -53,9 +53,9 @@ export function Problem() {
     <section className="py-20" aria-labelledby="problem-h">
       <div className="mx-auto max-w-content px-5">
         <Reveal>
-          <p className="eyebrow">The opportunity</p>
+          <p className="eyebrow">Background</p>
           <h2 id="problem-h" className="mt-2 max-w-prose text-h2 text-ink">
-            Regulation sets the boundary. Data makes it precise.
+            Why humid heat needs its own instruments.
           </h2>
         </Reveal>
         <div className="mt-12 grid gap-8 md:grid-cols-3">

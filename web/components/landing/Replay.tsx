@@ -108,9 +108,9 @@ export function Replay() {
     <section className="py-20" aria-labelledby="replay-h">
       <div className="mx-auto max-w-content px-5">
         <Reveal>
-          <p className="eyebrow">Replay</p>
+          <p className="eyebrow">Worked example</p>
           <h2 id="replay-h" className="mt-2 max-w-prose text-h2 text-ink">
-            Run it against a real past week.
+            A real past week, hour by hour.
           </h2>
         </Reveal>
 
@@ -136,11 +136,10 @@ export function Replay() {
         {state === "ready" && week && (
           <Reveal className="mt-8">
             <p className="text-lg text-ink-secondary">
-              Across <strong className="text-ink">{week.title.replace(/^Doha, /, "")}</strong>, the plan holds the worst
-              retained heat load{" "}
-              <strong className="mono text-ink">{fmt(week.pct_peak_reduction, 1)}%</strong> lower than the fixed
-              10:00 to 15:30 rule, with the same{" "}
-              <strong className="mono text-ink">{fmt(week.required_work_hours, 0)}</strong> hours worked each day.
+              <strong className="text-ink">{week.title.replace(/^Doha, /, "")}</strong> in Doha: the plan&apos;s
+              work rate against the fixed 10:00 to 15:30 rule, and the day&apos;s WBGT curve, for each
+              day, at the same{" "}
+              <strong className="mono text-ink">{fmt(week.required_work_hours, 0)}</strong> hours worked.
             </p>
             <p className="mono mt-1 text-sm text-ink-muted">{week.subtitle}</p>
 

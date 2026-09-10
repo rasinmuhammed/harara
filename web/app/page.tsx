@@ -4,10 +4,12 @@ import { Footer } from "@/components/landing/Footer";
 import { SmoothScroll } from "@/components/landing/SmoothScroll";
 import { Hero } from "@/components/landing/Hero";
 import { Problem } from "@/components/landing/Problem";
+import { Findings } from "@/components/landing/Findings";
+import { Method } from "@/components/landing/Method";
+import { LanguageLayer } from "@/components/landing/LanguageLayer";
 import { Idea } from "@/components/landing/Idea";
 import { Replay } from "@/components/landing/Replay";
-import { HowItWorks } from "@/components/landing/HowItWorks";
-import { Evidence } from "@/components/landing/Evidence";
+import { UseCases } from "@/components/landing/UseCases";
 import { Close } from "@/components/landing/Close";
 import { ContourDivider } from "@/components/visual/ContourDivider";
 import { Warm } from "@/components/Warm";
@@ -23,11 +25,13 @@ export default async function Page() {
         <Hero plan={plan} />
         <ContourDivider className="mx-auto max-w-content px-5 pt-10" />
         <Problem />
+        <Findings />
+        <Method />
+        <LanguageLayer />
         <Idea plan={plan} />
         <ContourDivider className="mx-auto max-w-content px-5 pt-6" />
         <Replay />
-        <HowItWorks />
-        <Evidence />
+        <UseCases />
         <ContourDivider className="mx-auto max-w-content px-5 pt-6" />
         <Close />
       </main>

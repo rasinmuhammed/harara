@@ -39,12 +39,12 @@ export function Idea({ plan: initial }: { plan: PlanResponse | null }) {
     <section className="border-t border-border py-20" aria-labelledby="idea-h">
       <div className="mx-auto max-w-content px-5">
         <Reveal>
-          <p className="eyebrow">The idea</p>
+          <p className="eyebrow">The daily plan</p>
           <h2 id="idea-h" className="mt-2 max-w-prose text-h2 text-ink">
-            Same hours of work, stronger protection across the whole day.
+            One working day in Doha, from the forecast to the plan.
           </h2>
           <p className="mt-3 max-w-prose text-lg text-ink-secondary">
-            One working day in Doha, built up in four steps, from the forecast to the regulation to the plan.
+            Built up in four steps: the forecast, the regulatory line, the fixed-window baseline, and the plan the solver returns inside it.
           </p>
         </Reveal>
 
@@ -63,7 +63,7 @@ export function Idea({ plan: initial }: { plan: PlanResponse | null }) {
                   <p className="mono text-micro uppercase tracking-wide text-ink-muted">Step {s.n} of 4</p>
                   <h3 className="mt-1 text-h4 text-ink">{s.title}</h3>
                   <p className="mt-2 text-base text-ink-secondary">{s.body}</p>
-                  {s.n === 4 && (
+                  {s.n === 4 && plan.summary.span_hours_plan != null && (
                     <p className="mt-3 text-sm text-ink-secondary">
                       On{" "}
                       {new Date(plan.meta.date + "T00:00:00Z").toLocaleDateString("en-GB", {
