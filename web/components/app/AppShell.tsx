@@ -229,9 +229,14 @@ export function AppShell() {
     <div className="mx-auto flex h-dvh max-w-[1280px] flex-col">
       {/* top bar, full width */}
       <header className="flex items-center justify-between border-b border-border px-4 py-2.5">
-        <Link href="/" className="text-base font-semibold tracking-tight text-ink">
-          Harara
-        </Link>
+        <div className="flex items-baseline gap-3">
+          <Link href="/" className="text-base font-semibold tracking-tight text-ink">
+            Harara
+          </Link>
+          <a href="/#findings" className="text-sm text-ink-muted hover:text-ink">
+            Findings
+          </a>
+        </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -254,6 +259,9 @@ export function AppShell() {
           <div className="flex items-center justify-between border-b border-border px-4 py-2">
             <div>
               <p className="eyebrow">Assistant</p>
+              <p className="text-micro text-ink-secondary">
+                This assistant is one application of the research. It plans shifts and answers heat, WBGT, forecast and rules questions for the Gulf.
+              </p>
               <p className="text-micro text-ink-secondary">
                 I answer questions about heat, WBGT, outdoor-work rules, and I can plan a shift. I don't do anything else.
               </p>
