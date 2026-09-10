@@ -149,3 +149,46 @@ def test_intent_override_incomplete_errors_closed():
         types = [json.loads(l[6:])["type"] for l in r.iter_lines()
                  if l and l.startswith("data: ")]
     assert "error" in types and "artifact" not in types
+
+
+# --------------------------------------------------------------- agent chat
+def test_general_question_gets_an_answer_not_a_clarification():
+    frames = _frames("What is WBGT and why does it matter in Doha?")
+    types = [f["type"] for f in frames]
+    assert "text" in types
+    assert "clarification" not in types and "artifact" not in types
+    said = " ".join(f["delta"] for f in frames if f["type"] == "text")
+    assert "WBGT" in said and len(said) > 40
+    assert frames[-1]["type"] == "done"
+
+
+def test_answer_has_no_ungrounded_number_on_the_mock_path():
+    # the mock has no converse(); the question path must fall back to the
+    # deterministic answer, which quotes only the published constants
+    from api.chat import _answer_is_grounded, _DET_ANSWER
+    assert _answer_is_grounded(_DET_ANSWER, set())
+    assert not _answer_is_grounded("the load will hit 41.7 by noon", set())
+    assert _answer_is_grounded("the load will hit 41.7 by noon", {"41.7"})
+
+
+def test_scheduling_attempt_missing_fields_still_asks_back():
+    frames = _frames("plan a shift for a heavy crew near Lusail")
+    types = [f["type"] for f in frames]
+    assert "clarification" in types
+    assert "artifact" not in types
+
+
+def test_follow_up_question_about_a_plan_is_answered():
+    chat_limiter.reset()
+    msgs = [
+        {"role": "user", "content": "plan tomorrow for a heavy acclimatised crew "
+                                    "of 10 near Lusail, 8 work-hours"},
+        {"role": "assistant", "content": "Here is the plan."},
+        {"role": "user", "content": "why does it rest in the afternoon?"},
+    ]
+    with client.stream("POST", "/api/chat",
+                       json={"messages": msgs,
+                             "context": {"today": TODAY.isoformat()}}) as r:
+        types = [json.loads(l[6:])["type"] for l in r.iter_lines()
+                 if l and l.startswith("data: ")]
+    assert "text" in types and "artifact" not in types

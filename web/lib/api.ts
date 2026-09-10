@@ -73,12 +73,19 @@ export async function parsePlan(text: string): Promise<
 export async function streamChat(
   messages: ChatMessageIn[],
   onFrame: (f: ChatFrame) => void,
-  opts: { signal?: AbortSignal; intent?: Record<string, any> } = {},
+  opts: {
+    signal?: AbortSignal;
+    intent?: Record<string, any>;
+    context?: Record<string, any>;
+  } = {},
 ): Promise<void> {
+  const body: Record<string, any> = { messages };
+  if (opts.intent) body.intent = opts.intent;
+  if (opts.context) body.context = opts.context;
   const r = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(opts.intent ? { messages, intent: opts.intent } : { messages }),
+    body: JSON.stringify(body),
     signal: opts.signal,
   });
   if (r.status === 429) {

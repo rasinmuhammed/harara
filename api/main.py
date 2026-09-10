@@ -54,7 +54,20 @@ app.add_middleware(
 
 @app.get("/api/health", response_model=HealthResponse)
 def health() -> HealthResponse:
-    return HealthResponse(version=__version__)
+    """Also reports which chat model is actually wired: `llm` is the configured
+    adapter, `chat_agent` is true only if it constructs (its key is present)."""
+    want = os.environ.get("HARARA_LLM", "mock")
+    live = want
+    agent = False
+    if want != "mock":
+        try:
+            from src.agent.llm import get_llm
+            get_llm(want)
+            agent = True
+        except Exception:
+            live = "mock (fallback)"
+    return HealthResponse(version=__version__, llm=live,
+                          forecast_source=FORECAST_SOURCE, chat_agent=agent)
 
 
 @app.post("/api/plan", response_model=PlanResponse)

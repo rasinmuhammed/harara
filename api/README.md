@@ -39,7 +39,23 @@ above 32.1 C are flagged `over_threshold` for the client to surface. The
 Backed by the fail-closed parser in `src/agent/parse.py` with the
 deterministic mock model -- it never guesses a safety-relevant field.
 
-### `GET /api/health` -> `{ "status": "ok", "version": "0.1.0" }`
+### `POST /api/chat` (streaming, SSE)
+
+`{ "messages": [...], "context": { "plan": {...}?, "gathering": bool? } }`.
+Frames: `status`, `text` (word by word), `clarification`, `artifact` (the full
+`/api/plan` payload), `error`, `done`. A scheduling request is parsed
+deterministically (fail-closed, gazetteer), planned, then explained; a
+question is answered by the configured model. The model never emits a number
+that reaches the client: plan figures come from the `artifact` frame and the
+explanation passes the numeric guard; a free-form answer may only quote the
+published regulatory constants and numbers already on screen, anything else
+degrades to a deterministic reply.
+
+### `GET /api/health`
+
+`{ "status", "version", "llm", "forecast_source", "chat_agent" }`. `chat_agent`
+is `true` only when `HARARA_LLM` is a real adapter whose key is present, so a
+deploy can confirm the conversational path is live.
 
 ## Run locally
 

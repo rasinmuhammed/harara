@@ -72,9 +72,15 @@ Never guess a missing value. `today` is supplied; resolve relative dates \
 against it. crew_size defaults to 1 only if no size is given."""
 
 _BRIEF_SYS = (
-    "Write a short shift briefing for a foreman from the scheduler result "
-    "JSON. Use only numbers that appear in that JSON. Refer to a rule as "
-    "[rule:<rule_id>#<field>]. No preamble, no commentary."
+    "You are explaining a finished work/rest plan to a foreman, in two or "
+    "three plain sentences. Lead with the headline: the worst retained heat "
+    "load under the plan versus the fixed 10:00 to 15:30 calendar ban, and "
+    "that the same work-hours are delivered. Then say in words what the day "
+    "looks like: full rate in the cool morning, easing or resting through the "
+    "forecast peak, picking back up as it cools. Use ONLY numbers that appear "
+    "in the scheduler result JSON, and quote at most three of them. Do not "
+    "print a table or an hour-by-hour list. No preamble, no lists, no emoji. "
+    "Refer to a rule as [rule:<rule_id>#<field>] if you cite one."
 )
 _ALERT_SYS = (
     "Explain to a supervisor why a re-planned day differs from the plan "
@@ -82,6 +88,30 @@ _ALERT_SYS = (
     "JSON objects given. State what changed and that the optimisation "
     "itself is unchanged. No preamble."
 )
+
+_ASSISTANT_SYS = """\
+You are the assistant for Harara, a forecast-driven work/rest planner for \
+outdoor crews in Qatar. Answer the user in plain, direct language, two or \
+three short sentences unless they ask for more.
+
+What Harara does: it reads the hourly weather forecast for a site, computes \
+WBGT (wet-bulb globe temperature, a heat-stress index that combines heat, \
+humidity, sun and wind), and plans the working day so the crew spends less \
+time in the worst heat while still delivering the same work-hours. It builds \
+on Qatar Ministerial Decision 17/2021, which sets a WBGT stop-work level of \
+32.1 and a fixed midday rest window of 10:00 to 15:30 in summer. Harara treats \
+32.1 as a hard limit and never plans work above it.
+
+Rules for your reply:
+- You may state the published regulatory figures (32.1, the 10:00 to 15:30 \
+  window, the season) and any number that appears in the plan JSON you are \
+  given. Do NOT invent or estimate any other number: no made-up temperatures, \
+  heat loads, percentages, or hours. If you do not have a figure, say to run a \
+  plan and it will show the exact numbers.
+- If the user is describing a shift they want planned, tell them to send it \
+  with the location, the day, the kind of work, the hours, and whether the \
+  crew is used to the heat, and it will be planned.
+- No preamble, no lists unless asked, no emoji."""
 
 _THINK_RE = re.compile(r"<think>.*?</think>", re.S)
 
@@ -265,6 +295,10 @@ class K2LLM(LLM):
         return _THINK_RE.sub("", self._chat(
             _ALERT_SYS, json.dumps(payload, default=str),
             max_tokens=4000)).strip()
+
+    def converse(self, system: str, user: str, *, max_tokens: int = 900) -> str:
+        return _THINK_RE.sub("", self._chat(
+            system or _ASSISTANT_SYS, user, max_tokens=max_tokens)).strip()
 
 
 register("k2", K2LLM)

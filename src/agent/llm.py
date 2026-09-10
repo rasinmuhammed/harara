@@ -69,6 +69,14 @@ class LLM(ABC):
         """Explain, for a human, why a re-planned day differs materially
         from the plan last issued."""
 
+    # Optional. A free-form answer for the conversational assistant (general
+    # questions about heat safety, the method, a plan already on screen).
+    # Returns None if this adapter has no general-chat capability, in which
+    # case the caller uses a deterministic response. Numbers in the answer
+    # are still checked downstream before anything reaches the user.
+    def converse(self, system: str, user: str, *, max_tokens: int = 900) -> str | None:  # noqa: ARG002
+        return None
+
 
 # =========================================================================
 # MockLLM

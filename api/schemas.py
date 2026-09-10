@@ -105,6 +105,9 @@ class ParseClarification(BaseModel):
 class HealthResponse(BaseModel):
     status: Literal["ok"] = "ok"
     version: str
+    llm: str = "mock"                 # which chat model is live
+    forecast_source: str = "open-meteo"
+    chat_agent: bool = False          # true when a real model drives the chat
 
 
 class ChatMessage(BaseModel):

@@ -1,7 +1,7 @@
 # Render.com blueprint for the Harara scheduler API.
 #   1. Push the repo to GitHub.
 #   2. Render dashboard -> New -> Blueprint -> pick this repo.
-#   3. After the first deploy, set ALLOWED_ORIGINS to the deployed web URL.
+#   3. Set the sync:false vars in the dashboard (see the table in api/README.md).
 services:
   - type: web
     name: harara-api
@@ -10,9 +10,15 @@ services:
     dockerContext: .
     plan: free
     healthCheckPath: /api/health
-    autoDeploy: false
+    autoDeploy: true          # redeploy on every push to the default branch
     envVars:
       - key: HARARA_FORECAST_SOURCE
         value: open-meteo
       - key: ALLOWED_ORIGINS
-        sync: false        # set in the dashboard, e.g. https://harara.vercel.app
+        sync: false            # the web app's URL, e.g. https://harara-one.vercel.app
+      - key: HARARA_LLM
+        sync: false            # "k2" for the conversational agent, else unset (mock)
+      - key: IFM_API_KEY
+        sync: false            # required when HARARA_LLM=k2
+      - key: OPEN_METEO_API_KEY
+        sync: false            # optional: a commercial key moves off the shared rate-limit pool

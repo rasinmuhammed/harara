@@ -184,13 +184,7 @@ export function AppShell() {
       setBusy(true);
       try {
         const res = await parsePlan(text);
-        if (res.outcome === "clarification") {
-          patchTurn(b.id, (t) => ({
-            ...t,
-            clarification: { question: res.question, missing_fields: res.missing_fields },
-            status: undefined,
-          }));
-        } else {
+        if (res.outcome === "parsed") {
           const it = res.intent as Intent;
           const named = it.location?.name && it.location.name !== "custom";
           if (!named) {
@@ -201,14 +195,50 @@ export function AppShell() {
             confirm: { intent: it, locationSource: named ? "your message" : "map pin" },
             status: undefined,
           }));
+          setBusy(false);
+          return;
         }
+        // not a complete plan request: let the assistant handle it. It answers
+        // a question, or streams a clarification frame for a real scheduling try.
+        abort.current = new AbortController();
+        const hist: ChatMessageIn[] = [...history(), { role: "user", content: text }];
+        const gathering = turns.some((t) => t.role === "assistant" && t.clarification);
+        await streamChat(
+          hist,
+          (f: ChatFrame) => {
+            if (f.type === "status") patchTurn(b.id, (t) => ({ ...t, status: f.state }));
+            else if (f.type === "text")
+              patchTurn(b.id, (t) => ({ ...t, text: t.text + f.delta, status: undefined, streaming: true }));
+            else if (f.type === "clarification")
+              patchTurn(b.id, (t) => ({
+                ...t,
+                clarification: { question: f.question, missing_fields: f.missing_fields },
+                status: undefined,
+              }));
+            else if (f.type === "artifact") {
+              setPlan(f.plan);
+              setPhase("ready");
+            } else if (f.type === "error")
+              patchTurn(b.id, (t) => ({ ...t, error: f.message, status: undefined }));
+            else if (f.type === "done")
+              patchTurn(b.id, (t) => ({ ...t, streaming: false, status: undefined }));
+          },
+          {
+            signal: abort.current.signal,
+            context: {
+              ...(plan ? { plan: { summary: plan.summary, meta: plan.meta } } : {}),
+              ...(gathering ? { gathering: true } : {}),
+            },
+          },
+        );
       } catch (e) {
-        patchTurn(b.id, (t) => ({ ...t, error: (e as Error).message, status: undefined }));
+        patchTurn(b.id, (t) => ({ ...t, error: (e as Error).message, status: undefined, streaming: false }));
       } finally {
         setBusy(false);
+        abort.current = null;
       }
     },
-    [busy],
+    [busy, plan, turns],
   );
 
   const stopChat = () => {
