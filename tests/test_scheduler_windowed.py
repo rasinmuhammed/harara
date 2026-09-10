@@ -52,8 +52,9 @@ def test_policy_earlier_start_single_block_and_hard_stop():
     assert all(w2[i] == 0.0 for i in range(H) if hot[i] > 32.1)
 
 
-def test_windowed_respects_span_cap_and_blocks():
-    wbgt = hot_day()
+def test_windowed_respects_span_cap_on_a_mild_day():
+    # nothing over 32.1, so the window search wins and the span cap bites
+    wbgt = hot_day(peak=30.0)
     res = schedule_windowed(wbgt[None, :], np.ones(H, dtype=bool), 9.0,
                             wbgt_point=wbgt)
     assert res.w.sum() >= 9.0 - 1e-6                    # work delivered
@@ -78,8 +79,8 @@ def test_windowed_never_worse_for_the_worker_than_calendar():
     assert res.n_blocks <= cal_blocks
 
 
-def test_zero_rest_allowance_forces_minimal_span():
-    wbgt = hot_day()
+def test_zero_rest_allowance_forces_minimal_span_on_a_mild_day():
+    wbgt = hot_day(peak=30.0)
     res = schedule_windowed(wbgt[None, :], np.ones(H, dtype=bool), 8.0,
                             wbgt_point=wbgt, rest_allowance_h=0.0)
     assert res.span_hours <= 8
@@ -90,5 +91,16 @@ def test_windowed_falls_back_to_earlier_start_when_no_window_clears_filters():
     allowed = np.ones(H, dtype=bool)
     res = schedule_windowed(wbgt[None, :], allowed, 9.0, wbgt_point=wbgt,
                             min_block_hours=99.0)
-    assert res.status == "ref_fallback"
+    assert res.status == "earlier_start"
     assert np.allclose(res.w, policy_earlier_start(wbgt, allowed, 9.0))
+
+
+def test_windowed_plan_is_never_worse_on_peak_than_the_earlier_start_block():
+    # on a day where dodging the midday heat needs a longer split than the span
+    # cap allows, the optimiser must not ship a hotter plan than the plain block
+    wbgt = hot_day(peak=35.0)
+    allowed = np.ones(H, dtype=bool)
+    res = schedule_windowed(wbgt[None, :], allowed, 9.0, wbgt_point=wbgt)
+    w_ear = policy_earlier_start(wbgt, allowed, 9.0)
+    from src.scheduler import realized_strain
+    assert realized_strain(res.w, wbgt) <= realized_strain(w_ear, wbgt) + 1e-6

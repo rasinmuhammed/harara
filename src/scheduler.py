@@ -270,6 +270,30 @@ def cumulative_exposure(w: np.ndarray, wbgt: np.ndarray,
     return float(np.sum(w * np.maximum(0.0, wbgt - wbgt_ref)))
 
 
+def _empirical_cvar(losses: np.ndarray, beta: float) -> float:
+    """Rockafellar-Uryasev CVaR of an empirical loss sample, matching the LP's
+    objective for a fixed schedule."""
+    x = np.sort(np.asarray(losses, dtype=float))
+    s = len(x)
+    if s == 0:
+        return 0.0
+    var = x[min(s - 1, int(np.floor(beta * s)))]
+    return float(var + np.sum(np.maximum(0.0, x - var)) / ((1.0 - beta) * s))
+
+
+def _penalised_score_fixed(w, scen, beta, phi, wbgt_ref, p, lambda_tv,
+                           lambda_rest):
+    """Score a fixed schedule the same way the outer search scores an LP
+    solution: penalised CVaR plus the residual on-site-rest cost."""
+    peaks = np.array([retained_load_path(w, scen[s], phi, wbgt_ref, p).max()
+                      for s in range(scen.shape[0])])
+    tv = float(np.sum(np.abs(np.diff(w))))
+    span = _worked_span(w)
+    rest = max(0.0, span - float(np.sum(w)))
+    return (_empirical_cvar(peaks, beta) + lambda_tv * tv
+            + lambda_rest * rest), span, rest
+
+
 def policy_earlier_start(wbgt, allowed, w_req, hard_stop=32.1) -> np.ndarray:
     """The plain fixed baseline: start at the first allowed hour and work
     forward continuously, pausing only for hours over the 32.1 C hard stop,
@@ -359,16 +383,25 @@ def schedule_windowed(
                 best = (key, w, res.status, float(res.obj), act_in, act_out,
                         span, onsite_rest, len(runs))
 
-    if best is None:
-        runs = _work_blocks(w_ref)
-        span = _worked_span(w_ref)
+    # The earlier-start block is always a candidate: a compact 2-block fixed
+    # schedule that is never worse for the worker than the calendar rule. If it
+    # delivers the work and scores at least as well as the best window
+    # (typically when dodging the midday heat needs a longer split day than
+    # span_cap allows), ship it - so the plan is never worse on heat than this
+    # plain baseline either.
+    ref_score, ref_span, ref_rest = _penalised_score_fixed(
+        w_ref, scen, beta, phi, wbgt_ref, p, lambda_tv, lambda_rest)
+    ref_runs = _work_blocks(w_ref)
+    ref_delivers = float(np.sum(w_ref)) >= w_req - 1e-6
+
+    take_ref = best is None or (ref_delivers and ref_score <= best[0][0])
+    if take_ref:
         return WindowedScheduleResult(
-            w=w_ref, status="ref_fallback", obj=float("nan"),
-            t_in=(runs[0][0] if runs else 0),
-            t_out=(runs[-1][1] if runs else 0),
-            span_hours=span,
-            onsite_rest_hours=max(0.0, span - float(w_ref.sum())),
-            n_blocks=len(runs), w_ref=w_ref)
+            w=w_ref, status="earlier_start", obj=float(ref_score),
+            t_in=(ref_runs[0][0] if ref_runs else 0),
+            t_out=(ref_runs[-1][1] if ref_runs else 0),
+            span_hours=ref_span, onsite_rest_hours=ref_rest,
+            n_blocks=len(ref_runs), w_ref=w_ref)
 
     _, w, status, obj, act_in, act_out, span, onsite_rest, n_blocks = best
     return WindowedScheduleResult(
