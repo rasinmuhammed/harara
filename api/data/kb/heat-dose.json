@@ -1,0 +1,6 @@
+{
+  "title": "Heat dose in Harara",
+  "text": "Heat dose, or cumulative exposure, is the total amount of heat stress a plan puts on a worker across the whole day, found by adding up each worked hour's WBGT above the crew's reference limit. Two plans can deliver the same work and reach a similar peak while carrying very different heat doses: a day stretched thin across many hot hours has a higher dose than a shorter day that works the cooler hours. Harara reports heat dose next to the peak so a plan that lowers one while raising the other is visible.",
+  "source": "Harara technical report, section 8 (scheduling)",
+  "keywords": ["heat", "dose", "cumulative", "exposure", "total", "integrated", "day", "compare"]
+}

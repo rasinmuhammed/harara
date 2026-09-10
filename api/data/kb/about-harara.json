@@ -1,0 +1,6 @@
+{
+  "title": "What Harara is",
+  "text": "Harara is a decision-support prototype for planning outdoor work in Gulf heat. It reads the hourly weather forecast for a site, computes WBGT, and lays out an hour-by-hour work and rest plan for a crew that delivers the required work-hours while holding down the heat the crew carries, within Qatar Ministerial Decision 17/2021. Every number it shows comes from the forecast, the physics, or a cited rule, never from the language model. It answers questions about heat, WBGT, the forecast, and outdoor-work rules, and it plans a shift. It does nothing else.",
+  "source": "Harara project documentation (README, docs/PROJECT_EXPLAINER.md)",
+  "keywords": ["harara", "what", "about", "does", "purpose", "who", "you", "assistant", "prototype", "help", "tool"]
+}

@@ -1,0 +1,6 @@
+{
+  "title": "The ACGIH work and rest idea",
+  "text": "The ACGIH heat-stress screening tables set, for a given WBGT, how much of each hour a person can work before the rest of the hour must be spent resting in shade. The limit depends on how hard the work is, light, moderate, heavy or very heavy, and on whether the worker is acclimatised. As WBGT rises the safe work fraction steps down through about 45 minutes per hour, then 30, then 15, then stop. These are population screening thresholds, not individual medical limits, and Harara uses them to turn a forecast WBGT into an hour-by-hour work and rest pattern for a specific crew.",
+  "source": "ACGIH 2017, TLVs and BEIs: Heat Stress and Strain; ISO 7243:2017",
+  "keywords": ["acgih", "work", "rest", "cycle", "fraction", "tlv", "screening", "45", "30", "15", "table", "limit", "workload"]
+}

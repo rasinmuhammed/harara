@@ -1,0 +1,6 @@
+{
+  "title": "What Harara does not do, and its honest limits",
+  "text": "Harara is a prototype and a screening tool, not medical advice and not a substitute for on-site monitoring. It uses a single Open-Meteo forecast grid cell, the ACGIH population screening tables, and a one-state retained-heat model. It does not track an individual worker's body, model the commute or heat in the accommodation, or enforce anything. One finding is deliberately stated plainly: once a crew's time on site is held no longer than the fixed 10:00 to 15:30 calendar rule, Harara's daily optimiser does not beat that rule on peak heat load. The earlier 14 percent figure came from spreading work across a longer on-site day. The rule's midday break does the protective work on the hottest days; the daily layer's job is to be no worse for the worker than that rule.",
+  "source": "Harara technical report, sections 8 and 12; results ledger row 14a",
+  "keywords": ["limitation", "limitations", "limits", "caveat", "weakness", "prototype", "not", "cannot", "medical", "honest", "14 percent", "scheduler finding"]
+}

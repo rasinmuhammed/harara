@@ -1,0 +1,6 @@
+{
+  "title": "What WBGT is",
+  "text": "WBGT, the wet-bulb globe temperature, is a heat-stress index in degrees Celsius that combines four things a plain thermometer misses: air temperature, humidity, radiant heat from the sun, and wind. Outdoors it is roughly 0.7 times the natural wet-bulb temperature, 0.2 times the black-globe temperature, and 0.1 times the air temperature. Humidity carries the largest weight because sweat is the body's main way of shedding heat, and sweat cannot evaporate in humid air. In the Gulf a WBGT near 32 can occur at an air temperature well below 40, which is why work rules are written against WBGT rather than air temperature.",
+  "source": "ISO 7243:2017; ACGIH 2017, Heat Stress and Strain; Liljegren et al. 2008",
+  "keywords": ["wbgt", "wet-bulb", "wet bulb", "globe", "index", "humidity", "how", "computed", "calculated", "measured", "define", "meaning"]
+}

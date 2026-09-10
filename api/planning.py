@@ -149,6 +149,228 @@ def weekly_outlook(lat: float, lon: float, *, today: dt.date | None = None,
     return forecast_cache.get_or_set(key, produce)
 
 
+def _day_wbgt(lat: float, lon: float, date: dt.date, *, source: str,
+              tz: str = "Asia/Qatar") -> tuple[dict[int, float], str]:
+    """{local_hour: WBGT} for local daytime hours 5..19 on `date`, plus the
+    source actually used. Shares the plan cache and the rate-limit fallback."""
+    import zoneinfo
+
+    glat, glon = _snap(lat), _snap(lon)
+    key = ("daywbgt", source, glat, glon, date.isoformat())
+
+    def produce():
+        try:
+            fc = get_forecast(GetForecastRequest(
+                lat=glat, lon=glon, start_date=date - dt.timedelta(days=1),
+                end_date=date + dt.timedelta(days=1), source=source))
+            used = source
+        except Exception:
+            if source == "mock":
+                raise
+            fc = get_forecast(GetForecastRequest(
+                lat=glat, lon=glon, start_date=date - dt.timedelta(days=1),
+                end_date=date + dt.timedelta(days=1), source="mock"))
+            used = "synthetic fallback (live forecast was rate-limited)"
+        wb = compute_wbgt(ComputeWbgtRequest(hours=fc.hours, lat=glat, lon=glon))
+        z = zoneinfo.ZoneInfo(tz)
+        out: dict[str, float] = {}
+        for h in wb.hours:
+            loc = h.time_utc.astimezone(z)
+            if loc.date() == date and 5 <= loc.hour <= 19:
+                out[str(loc.hour)] = round(float(h.wbgt_c), 2)
+        return {"hours": out, "source": used}
+
+    got = forecast_cache.get_or_set(key, produce)
+    return {int(k): v for k, v in got["hours"].items()}, got["source"]
+
+
+_ACGIH_BAND = {
+    1.0: "continuous work is within the screening limit",
+    0.75: "about 45 minutes work, 15 minutes rest each hour",
+    0.5: "about 30 minutes work, 30 minutes rest each hour",
+    0.25: "about 15 minutes work, 45 minutes rest each hour",
+    0.0: "no safe work cycle, stop work",
+}
+
+
+def nowcast(lat: float, lon: float, *, today: dt.date | None = None,
+            source: str = "open-meteo", tz: str = "Asia/Qatar") -> dict:
+    """Latest forecast hour for a site: its WBGT, the ACGIH work/rest band for
+    moderate work, and whether it is over the 32.1 C stop-work line. Answers
+    'is it safe to work outside right now'."""
+    import zoneinfo
+
+    from src.heat_stress import allowable_work_fraction
+
+    today = today or dt.date.today()
+    z = zoneinfo.ZoneInfo(tz)
+    now_local = dt.datetime.now(z)
+    hours, used = _day_wbgt(lat, lon, today, source=source, tz=tz)
+    if not hours:
+        return {"grid": {"lat": _snap(lat), "lon": _snap(lon)}, "source": used,
+                "available": False,
+                "note": "No forecast hour is available for this site right now."}
+    cur_h = now_local.hour if now_local.date() == today else max(hours)
+    pick = max((h for h in hours if h <= cur_h), default=min(hours))
+    wbgt = hours[pick]
+    import numpy as _np
+    frac_acc = float(allowable_work_fraction(_np.array([wbgt]), "moderate", True)[0])
+    frac_un = float(allowable_work_fraction(_np.array([wbgt]), "moderate", False)[0])
+    return {
+        "grid": {"lat": _snap(lat), "lon": _snap(lon)},
+        "source": used,
+        "available": True,
+        "as_of_local": f"{pick:02d}:00",
+        "wbgt": round(wbgt, 1),
+        "over_threshold": bool(wbgt > THRESHOLD_C),
+        "acgih_band_acclimatised": _ACGIH_BAND[frac_acc],
+        "acgih_band_unacclimatised": _ACGIH_BAND[frac_un],
+        "note": ("Screening band for moderate work. The 32.1 C stop-work line "
+                 "is a hard limit whatever the band."),
+    }
+
+
+def coolest_window(lat: float, lon: float, date: dt.date, *,
+                   today: dt.date | None = None, source: str = "open-meteo",
+                   tz: str = "Asia/Qatar", block: int = 3) -> dict:
+    """The coolest run of working hours on `date`, and when WBGT crosses 32.1 C.
+    From the forecast only."""
+    hours, used = _day_wbgt(lat, lon, date, source=source, tz=tz)
+    if not hours:
+        return {"grid": {"lat": _snap(lat), "lon": _snap(lon)}, "source": used,
+                "available": False, "note": "No forecast for this day."}
+    order = sorted(hours)
+    up = next((h for h in order if hours[h] > THRESHOLD_C), None)
+    down = next((h for h in order if up is not None and h > up
+                 and hours[h] <= THRESHOLD_C), None)
+    best_lo, best_mean = order[0], float("inf")
+    for i in range(len(order) - block + 1):
+        run = order[i:i + block]
+        if run[-1] - run[0] != block - 1:
+            continue
+        m = sum(hours[h] for h in run) / block
+        if m < best_mean:
+            best_mean, best_lo = m, run[0]
+    over = [f"{h:02d}:00" for h in order if hours[h] > THRESHOLD_C]
+    return {
+        "grid": {"lat": _snap(lat), "lon": _snap(lon)},
+        "source": used,
+        "available": True,
+        "date": date.isoformat(),
+        "coolest_start": f"{best_lo:02d}:00",
+        "coolest_end": f"{best_lo + block:02d}:00",
+        "coolest_mean_wbgt": round(best_mean, 1),
+        "crosses_32_1_up": f"{up:02d}:00" if up is not None else None,
+        "crosses_32_1_down": f"{down:02d}:00" if down is not None else None,
+        "hours_over_threshold": over,
+    }
+
+
+_CLIMO_PATH = pathlib.Path(__file__).resolve().parents[1] / "data" / "doha_wbgt_16yr.csv"
+_climo_cache: dict = {}
+
+
+def _climo_df():
+    """The 16-year Doha WBGT record (hourly, 2010 to 2026), local time added.
+    Cached for the process. This is the OTHH-station series, the only long WBGT
+    record Harara holds; climatology_compare and heat_trend describe it and note
+    that it does not resolve individual sites."""
+    if "df" not in _climo_cache:
+        import pandas as pd
+
+        df = pd.read_csv(_CLIMO_PATH, usecols=["time", "wbgt_c"])
+        t = pd.to_datetime(df["time"], utc=True).dt.tz_convert("Asia/Qatar")
+        df["date"] = t.dt.date
+        df["hour"] = t.dt.hour
+        df["doy"] = t.dt.dayofyear
+        df["year"] = t.dt.year
+        df["month"] = t.dt.month
+        _climo_cache["df"] = df
+    return _climo_cache["df"]
+
+
+def climatology_compare(lat: float, lon: float, date: dt.date, *,
+                        today: dt.date | None = None,
+                        source: str = "open-meteo", window_days: int = 7) -> dict:
+    """The forecast peak WBGT for `date` against the 16-year distribution of
+    daily peak WBGT for that time of year. Answers 'is this heat unusual'."""
+    hours, used = _day_wbgt(lat, lon, date, source=source)
+    if not hours:
+        return {"available": False, "source": used,
+                "note": "No forecast for this day."}
+    fc_peak = round(max(hours.values()), 1)
+
+    import numpy as _np
+
+    df = _climo_df()
+    doy = date.timetuple().tm_yday
+    lo, hi = doy - window_days, doy + window_days
+    sel = df[(df["doy"].between(lo, hi)) & (df["hour"].between(5, 19))]
+    peaks = sel.groupby("date")["wbgt_c"].max().to_numpy()
+    if len(peaks) < 30:
+        return {"available": True, "source": used, "date": date.isoformat(),
+                "forecast_peak_wbgt": fc_peak, "comparable": False,
+                "note": "Not enough record for this time of year to compare."}
+    pct = float((peaks < fc_peak).mean() * 100.0)
+    med = float(_np.median(peaks))
+    p90 = float(_np.percentile(peaks, 90))
+    p10 = float(_np.percentile(peaks, 10))
+    if fc_peak >= p90:
+        verdict = "unusually hot for the time of year"
+    elif fc_peak <= p10:
+        verdict = "unusually mild for the time of year"
+    else:
+        verdict = "about typical for the time of year"
+    return {
+        "available": True,
+        "comparable": True,
+        "source": used,
+        "date": date.isoformat(),
+        "forecast_peak_wbgt": fc_peak,
+        "climatology_median_peak": round(med, 1),
+        "climatology_p90_peak": round(p90, 1),
+        "percentile": round(pct),
+        "verdict": verdict,
+        "record_years": int(df["year"].nunique()),
+        "window_days": window_days,
+        "note": ("Distribution is the Doha OTHH station record; it does not "
+                 "resolve individual sites."),
+    }
+
+
+def heat_trend(lat: float, lon: float, *, today: dt.date | None = None) -> dict:
+    """Warm-season (June to September) WBGT stop-work-hour count per year over
+    the 16-year Doha record, and the direction of the trend. Answers 'has heat
+    been increasing here'."""
+    import numpy as _np
+    import pandas as pd
+
+    df = _climo_df()
+    warm = df[(df["month"].between(6, 9)) & (df["hour"].between(6, 18))]
+    per_year = (warm.assign(over=warm["wbgt_c"] > THRESHOLD_C)
+                .groupby("year")["over"].sum())
+    last_date = pd.Timestamp(max(df["date"]))
+    partial_tail = (last_date.month, last_date.day) < (9, 30)
+    if partial_tail and len(per_year) > 3:
+        per_year = per_year.iloc[:-1]
+    yrs = per_year.index.to_numpy(dtype=float)
+    vals = per_year.to_numpy(dtype=float)
+    slope = float(_np.polyfit(yrs, vals, 1)[0]) if len(yrs) >= 3 else 0.0
+    return {
+        "source": "Harara technical report section 4.1; 16-year Doha WBGT record",
+        "first_year": int(yrs[0]),
+        "last_year": int(yrs[-1]),
+        "stop_work_hours_per_year": {int(y): int(v) for y, v in zip(yrs, vals)},
+        "early_years_mean": round(float(vals[:3].mean())),
+        "recent_years_mean": round(float(vals[-3:].mean())),
+        "slope_hours_per_year": round(slope, 1),
+        "direction": "rising" if slope > 3 else "falling" if slope < -3 else "flat",
+        "note": ("Counts hours with WBGT over 32.1 C, June to September, 06:00 "
+                 "to 18:00 local, at the Doha OTHH station. Not resolved to "
+                 "other sites."),
+    }
+
+
 def _cycle(frac: float) -> str:
     if frac <= 1e-9:
         return "rest in shade"

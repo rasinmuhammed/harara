@@ -23,7 +23,11 @@ from fastapi.responses import StreamingResponse
 
 from api import __version__
 from api.chat import chat_stream
-from api.planning import build_plan, weekly_outlook
+from api.chat_scope import counts as refusal_counts
+from api.planning import (
+    build_plan, climatology_compare, coolest_window, heat_trend, nowcast,
+    weekly_outlook,
+)
 from api.ratelimit import chat_limiter
 from api.schemas import (
     ChatRequest, HealthResponse, ParseClarification, ParseParsed, ParseRequest,
@@ -129,6 +133,51 @@ def outlook(lat: float, lon: float, days: int = 7):
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=502,
                             detail=f"could not build an outlook: {exc}") from exc
+
+
+def _tool(fn, **kw):
+    try:
+        return fn(**kw)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502,
+                            detail=f"could not answer: {exc}") from exc
+
+
+@app.get("/api/nowcast")
+def api_nowcast(lat: float, lon: float):
+    """Latest forecast hour: WBGT, the ACGIH work/rest band, and the 32.1 flag."""
+    today = dt.datetime.now(dt.timezone.utc).date()
+    return _tool(nowcast, lat=lat, lon=lon, today=today, source=FORECAST_SOURCE)
+
+
+@app.get("/api/coolest-window")
+def api_coolest_window(lat: float, lon: float, date: dt.date):
+    today = dt.datetime.now(dt.timezone.utc).date()
+    return _tool(coolest_window, lat=lat, lon=lon, date=date, today=today,
+                source=FORECAST_SOURCE)
+
+
+@app.get("/api/climatology")
+def api_climatology(lat: float, lon: float, date: dt.date):
+    """The day's forecast peak WBGT against the 16-year distribution for that
+    time of year."""
+    today = dt.datetime.now(dt.timezone.utc).date()
+    return _tool(climatology_compare, lat=lat, lon=lon, date=date, today=today,
+                source=FORECAST_SOURCE)
+
+
+@app.get("/api/heat-trend")
+def api_heat_trend(lat: float, lon: float):
+    """Warm-season WBGT stop-work hours per year over the Doha record."""
+    today = dt.datetime.now(dt.timezone.utc).date()
+    return _tool(heat_trend, lat=lat, lon=lon, today=today)
+
+
+@app.get("/api/chat-refusals")
+def api_chat_refusals():
+    """Chat intent-bucket counts for this process. Counts only, no message
+    content, so misuse volume is visible without storing anything."""
+    return {"buckets": refusal_counts()}
 
 
 @app.get("/api/replay")

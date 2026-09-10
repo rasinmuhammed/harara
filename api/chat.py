@@ -1,18 +1,27 @@
 """
-Streaming chat. The configured model (HARARA_LLM) runs the whole conversation:
-it chats, asks for anything missing in its own words, and when it has the five
-things a plan needs it says so in a JSON envelope. The deterministic core then
-builds the plan and the model's lead-in plus the guarded briefing stream back
-with the artifact.
+Streaming chat, scope-locked. Every message is classified by
+`api.chat_scope.classify` before any model call into one of: plan_request,
+weather_question, heat_safety_question, rules_question, about_harara,
+emergency, out_of_scope. Only those buckets go further.
 
-The model never produces a number that reaches the user. Plan figures come
-from the /api/plan payload in the `artifact` frame; the briefing passes the
-numeric guard; a chat reply may only quote the published regulatory constants
-and figures from a plan already on screen, and anything else degrades to a
-deterministic reply.
+- out_of_scope (including prompt-injection attempts): one fixed reply, no
+  model call.
+- emergency: a fixed KB-grounded first-response block with a banner, no model.
+- heat_safety_question / about_harara: the curated KB entry's own text with
+  its source shown; the model does not paraphrase it.
+- rules_question: the Qatar rule from the rule store, or a KB summary for the
+  UAE and Saudi Arabia, each cited.
+- weather_question: a deterministic sentence off one of the forecast tools
+  (nowcast, coolest_window, climatology_compare, heat_trend, weekly_outlook),
+  with its source; the model may phrase a multi-day comparison, checked by the
+  numeric guard and the output scope guard first.
+- plan_request: the model turns the conversation into a validated tool call,
+  or the deterministic parser does; the plan and every number come from
+  /api/plan.
 
-If the model is unavailable (no key, transport error) every path falls back to
-the deterministic parser, which still refuses to guess a safety-relevant field.
+The model never produces a number that reaches the user, and no model reply
+reaches the user without passing the numeric guard and the output scope guard.
+Refusals are counted by bucket only, never by content.
 """
 
 from __future__ import annotations
@@ -24,8 +33,20 @@ import re
 import time
 from collections.abc import Iterator
 
-from api.planning import plan_with_sched, weekly_outlook
+from api import kb
+from api.chat_scope import (
+    NO_MATCH_REPLY, OUT_OF_SCOPE_REPLY, classify, emergency_reply,
+)
+from api.chat_scope import _PLAN_ASK  # noqa: PLC2701  (shared plan-intent regex)
+from api.chat_scope import counts as refusal_counts  # noqa: F401  (re-exported)
+from api.chat_scope import note as _note_bucket
+from api.chat_scope import output_in_scope
+from api.planning import (
+    climatology_compare, coolest_window, heat_trend, nowcast, plan_with_sched,
+    weekly_outlook,
+)
 from api.schemas import PlanRequest
+from src.agent import rule_store
 from src.agent.llm import GAZETTEER, get_llm
 from src.agent.parse import parse_scheduling_request
 from src.agent.schemas import ClarificationNeeded, ParsedRequest
@@ -342,6 +363,230 @@ def _finish_plan(plan, sched, llm, llm_name: str, location_name: str,
     yield _sse({"type": "done"})
 
 
+# ------------------------------------------------------- grounded answers
+def _emit_answer(text: str, source: str, detail: str = "") -> Iterator[str]:
+    yield from _stream_words(_clean(text))
+    yield _sse({"type": "source", "label": source, "detail": detail})
+    yield _sse({"type": "done"})
+
+
+def _handle_emergency() -> Iterator[str]:
+    banner, body, src = emergency_reply()
+    yield _sse({"type": "emergency", "banner": banner})
+    yield from _stream_words(body)
+    yield _sse({"type": "source", "label": src})
+    yield _sse({"type": "done"})
+
+
+def _handle_kb(text: str) -> Iterator[str]:
+    a = kb.answer(text)
+    if not a:
+        yield from _stream_words(NO_MATCH_REPLY)
+        yield _sse({"type": "done"})
+        return
+    yield from _emit_answer(a["text"], a["source"], a["title"])
+
+
+def _handle_about(text: str) -> Iterator[str]:
+    """A 'what is Harara / who are you / your limits' message, or a greeting.
+    Falls back to the 'what Harara is' entry when nothing more specific hits."""
+    a = kb.answer(text)
+    if not a or a["id"] not in ("about-harara", "harara-limitations"):
+        e = kb.get("about-harara")
+        a = {"text": e["text"], "source": e["source"], "title": e["title"]}
+    yield from _emit_answer(a["text"], a["source"], a["title"])
+
+
+_UAE = re.compile(r"\b(uae|u\.a\.e|emirat|dubai|abu dhabi|sharjah|ajman|"
+                  r"ras al khaimah|fujairah)\b", re.I)
+_SAUDI = re.compile(r"\b(saudi|k\.s\.a|ksa|riyadh|jeddah|jiddah|dammam|mecca|"
+                    r"makkah|medina)\b", re.I)
+_OTHER_GULF = re.compile(r"\b(bahrain|manama|kuwait|oman|muscat|iraq|jordan)\b", re.I)
+
+
+def _handle_rules(text: str) -> Iterator[str]:
+    if _UAE.search(text):
+        e = kb.get("uae-midday-break")
+        yield from _emit_answer(e["text"], e["source"], e["title"])
+        return
+    if _SAUDI.search(text):
+        e = kb.get("saudi-midday-ban")
+        yield from _emit_answer(e["text"], e["source"], e["title"])
+        return
+    if _OTHER_GULF.search(text):
+        yield from _stream_words(
+            "I have Qatar's rule in full, plus summaries for the UAE and Saudi "
+            "Arabia. I don't have a confirmed rule for that country. Check the "
+            "local labour authority.")
+        yield _sse({"type": "done"})
+        return
+    # default: Qatar. Prefer the rule store record for the citation.
+    e = kb.get("qatar-rule")
+    src = e["source"]
+    try:
+        rec = rule_store.load("qatar-md-17-2021")
+        src = f"Rule store: {rec.rule_id} ({rec.title})"
+    except Exception:
+        pass
+    yield from _emit_answer(e["text"], src, e["title"])
+
+
+def _say_nowcast(nc: dict, name: str) -> str:
+    if not nc.get("available"):
+        return (f"I could not get a current forecast hour for {name}. "
+                "Try again shortly.")
+    over = nc["over_threshold"]
+    line = (f"At {name}, the {nc['as_of_local']} forecast WBGT is "
+            f"{nc['wbgt']:g}. ")
+    if over:
+        line += ("That is above the 32.1 stop-work line, so outdoor work "
+                 "should be stopped. ")
+    else:
+        line += "That is below the 32.1 stop-work line. "
+    line += (f"For moderate work the screening band is: "
+             f"{nc['acgih_band_acclimatised']} if the crew is acclimatised, "
+             f"{nc['acgih_band_unacclimatised']} if not.")
+    return line
+
+
+def _say_coolest(cw: dict, name: str) -> str:
+    if not cw.get("available"):
+        return f"I could not get the forecast for {name} on that day."
+    line = (f"For {name} on {cw['date']}, the coolest working stretch is about "
+            f"{cw['coolest_start']} to {cw['coolest_end']}, mean WBGT "
+            f"{cw['coolest_mean_wbgt']:g}. ")
+    if cw["crosses_32_1_up"]:
+        line += f"Forecast WBGT crosses 32.1 upward around {cw['crosses_32_1_up']}"
+        line += (f" and drops back below around {cw['crosses_32_1_down']}."
+                 if cw["crosses_32_1_down"] else " and stays above it into the evening.")
+    else:
+        line += "Forecast WBGT stays below 32.1 all day."
+    return line
+
+
+def _say_climo(cc: dict, name: str) -> str:
+    if not cc.get("available"):
+        return f"I could not get the forecast for {name} on that day."
+    if not cc.get("comparable"):
+        return (f"The forecast peak WBGT for {name} on {cc['date']} is "
+                f"{cc['forecast_peak_wbgt']:g}. I do not have enough record for "
+                "that time of year to say whether that is unusual.")
+    return (f"The forecast peak WBGT for {name} on {cc['date']} is "
+            f"{cc['forecast_peak_wbgt']:g}. Over {cc['record_years']} years the "
+            f"typical peak around this date is {cc['climatology_median_peak']:g}, "
+            f"with the hot tenth of days above {cc['climatology_p90_peak']:g}. "
+            f"This day sits near the {cc['percentile']:g}th percentile, "
+            f"{cc['verdict']}.")
+
+
+def _say_trend(tr: dict, name: str) -> str:
+    return (f"At the Doha station, WBGT stop-work hours in June to September ran "
+            f"about {tr['early_years_mean']:g} per year in "
+            f"{tr['first_year']} to {tr['first_year'] + 2}, and about "
+            f"{tr['recent_years_mean']:g} per year in the last three full years. "
+            f"The trend over {tr['first_year']} to {tr['last_year']} is "
+            f"{tr['direction']}, near {tr['slope_hours_per_year']:g} hours more "
+            f"per year. The record does not resolve {name} on its own.")
+
+
+def _say_outlook(ol: dict, name: str) -> str:
+    days = ol.get("days") or []
+    if not days:
+        return f"I could not get a multi-day forecast for {name}."
+    hot = max(days, key=lambda d: d["peak_wbgt"])
+    cool = min(days, key=lambda d: d["peak_wbgt"])
+    n = len(days)
+    if hot["peak_wbgt"] - cool["peak_wbgt"] < 0.3:
+        line = (f"Over the next {n} days at {name}, peak WBGT holds near "
+                f"{hot['peak_wbgt']:g} each day. ")
+    else:
+        line = (f"Over the next {n} days at {name}, peak WBGT runs from about "
+                f"{cool['peak_wbgt']:g} on {cool['date']} (the mildest) to about "
+                f"{hot['peak_wbgt']:g} on {hot['date']} (the hottest). ")
+    over = [d["date"] for d in days if d["over_threshold"]]
+    line += (f"{len(over)} of the {n} days cross 32.1 at their peak."
+             if over else "None of those days cross 32.1 at their peak.")
+    return line
+
+
+def _handle_weather(text: str, cur: dict | None, today: dt.date,
+                    forecast_source: str, llm, llm_name: str) -> Iterator[str]:
+    if not (cur and cur.get("lat") is not None):
+        yield from _stream_words(
+            "Tell me the site first, set it on the map or name a known one, and "
+            "I will check the forecast.")
+        yield _sse({"type": "done"})
+        return
+    lat, lon = float(cur["lat"]), float(cur["lon"])
+    name = str(cur.get("name") or "the site")
+    low = text.lower()
+    if "day after tomorrow" in low:
+        cur_date = today + dt.timedelta(days=2)
+    elif "tomorrow" in low:
+        cur_date = today + dt.timedelta(days=1)
+    elif "today" in low or "right now" in low or "tonight" in low:
+        cur_date = today
+    else:
+        try:
+            cur_date = (dt.date.fromisoformat(str(cur.get("date")))
+                        if cur.get("date") else today)
+        except ValueError:
+            cur_date = today
+
+    try:
+        if re.search(r"right now|at the moment|currently|safe to work|how hot is it"
+                     r"|conditions?\s+(now|today|outside)|can (we|they|i) work (now|today)",
+                     low):
+            nc = nowcast(lat, lon, today=today, source=forecast_source)
+            yield from _emit_answer(_say_nowcast(nc, name), "Forecast nowcast tool",
+                                    nc.get("source", ""))
+            return
+        if re.search(r"coolest|when (does|will) it (cool|get cooler)"
+                     r"|when (does|will) wbgt|cross(es)? 32", low):
+            cw = coolest_window(lat, lon, cur_date, today=today, source=forecast_source)
+            yield from _emit_answer(_say_coolest(cw, name), "coolest_window tool",
+                                    cw.get("source", ""))
+            return
+        if re.search(r"unusual|typical|normal for|record|compared to (normal|average|history)"
+                     r"|for this time of year|climatolog", low):
+            cc = climatology_compare(lat, lon, cur_date, today=today,
+                                     source=forecast_source)
+            yield from _emit_answer(_say_climo(cc, name), "climatology_compare tool",
+                                    cc.get("source", ""))
+            return
+        if re.search(r"trend|increasing|been (getting )?hotter|getting hotter"
+                     r"|over the years|climate|warming|rising", low):
+            tr = heat_trend(lat, lon, today=today)
+            yield from _emit_answer(_say_trend(tr, name), tr["source"])
+            return
+        ol = weekly_outlook(lat, lon, today=today, source=forecast_source)
+    except Exception:
+        yield _sse({"type": "error",
+                    "message": "The forecast service did not respond. Try again "
+                               "in a moment."})
+        yield _sse({"type": "done"})
+        return
+
+    # multi-day comparison: let the model phrase it from the outlook JSON,
+    # checked by the numeric guard and the output scope guard first.
+    said = ""
+    if llm_name != "mock":
+        try:
+            convo = (f"user: {text}\n\n[7-day WBGT outlook for {name}, daytime "
+                     f"peak and mean per local day, quote figures from here only]\n"
+                     + json.dumps(ol, default=str))
+            raw = llm.converse(_agent_sys(today, cur), convo, max_tokens=500)
+            cand = _clean(str(_extract_json(_THINK.sub("", raw or "")).get("say") or "")) \
+                if raw and raw.strip().startswith("{") else _clean(raw or "")
+            allowed = _CONST_OK | _plan_numbers(ol)
+            if cand and _numbers_ok(cand, allowed) and output_in_scope(cand):
+                said = cand
+        except Exception:
+            said = ""
+    yield from _emit_answer(said or _say_outlook(ol, name),
+                            "weekly_outlook tool", ol.get("source", ""))
+
+
 # --------------------------------------------------------------------- entry
 def chat_stream(
     messages: list[dict],
@@ -380,6 +625,48 @@ def chat_stream(
         yield _sse({"type": "done"})
         return
 
+    # ---- scope lock: classify before any model call ------------------
+    _mock = get_llm("mock")
+    parsed_peek = parse_scheduling_request(text, today=today, llm=_mock)
+    # a strong plan signal only: a complete parse, an in-progress gather, or an
+    # explicit "plan / schedule / re-plan this" verb. A lone date word or the
+    # word "crew" is not enough (it appears in weather and heat-safety asks).
+    schedule_hint = (isinstance(parsed_peek, ParsedRequest)
+                     or _prev_was_clarification(messages)
+                     or bool(_PLAN_ASK.search(text)))
+    gathering = bool(context.get("gathering"))
+    intent = classify(text, schedule_hint=schedule_hint, gathering=gathering)
+    _note_bucket(intent)
+
+    if intent == "emergency":
+        yield from _handle_emergency()
+        return
+    if intent == "out_of_scope":
+        yield from _stream_words(OUT_OF_SCOPE_REPLY)
+        yield _sse({"type": "done"})
+        return
+    if intent == "about_harara":
+        yield from _handle_about(text)
+        return
+    if intent == "heat_safety_question":
+        yield from _handle_kb(text)
+        return
+    if intent == "rules_question":
+        yield from _handle_rules(text)
+        return
+    if intent == "weather_question":
+        yield from _handle_weather(text, cur, today, forecast_source, llm, llm_name)
+        return
+
+    # intent == "plan_request" from here
+    yield from _handle_plan(messages, text, cur, plan_ctx, llm, llm_name,
+                            forecast_source, today, parsed_peek)
+
+
+def _handle_plan(
+    messages: list[dict], text: str, cur: dict | None, plan_ctx: dict | None,
+    llm, llm_name: str, forecast_source: str, today: dt.date, parsed_peek,
+) -> Iterator[str]:
     # ---- model-driven conversation ----------------------------------
     if llm_name != "mock":
         convo = "\n".join(f"{m['role']}: {m['content']}" for m in messages[-10:]
@@ -387,19 +674,6 @@ def chat_stream(
         if plan_ctx:
             convo += ("\n\n[plan on screen, quote figures from here only]\n"
                       + json.dumps(plan_ctx, default=str))
-
-        # a weather / outlook question: hand the assistant a real multi-day
-        # WBGT outlook for the current site so it can compare days.
-        outlook = None
-        if _WEATHER_Q.search(text) and cur and cur.get("lat") is not None:
-            try:
-                outlook = weekly_outlook(float(cur["lat"]), float(cur["lon"]),
-                                         today=today, source=forecast_source)
-                convo += ("\n\n[7-day WBGT outlook for this site, daytime peak and "
-                          "mean per local day, quote figures from here only]\n"
-                          + json.dumps(outlook, default=str))
-            except Exception:
-                outlook = None
 
         yield _sse({"type": "status", "state": "parsing"})
         try:
@@ -412,26 +686,28 @@ def chat_stream(
             say = _clean(str(obj.get("say") or ""))
             plan_now = obj.get("action") == "plan" and isinstance(obj.get("params"), dict)
             if not plan_now:
-                allowed = _CONST_OK | _plan_numbers(plan_ctx) | _plan_numbers(outlook)
-                yield from _stream_words(say if say and _numbers_ok(say, allowed)
-                                         else _DET_ANSWER)
+                allowed = _CONST_OK | _plan_numbers(plan_ctx)
+                ok = bool(say) and _numbers_ok(say, allowed) and output_in_scope(say)
+                yield from _stream_words(say if ok else _DET_ANSWER)
                 yield _sse({"type": "done"})
                 return
             built = _build_request(obj["params"], cur, today)
             if isinstance(built, str):  # a field is still missing
-                yield from _stream_words(say or built)
+                clean_say = say if (say and output_in_scope(say)
+                                    and _numbers_ok(say, _CONST_OK)) else built
+                yield from _stream_words(clean_say)
                 yield _sse({"type": "done"})
                 return
             req, name = built
             yield from _run_request(req, name, llm, llm_name, forecast_source,
-                                    today, lead_in=say)
+                                    today, lead_in=say if output_in_scope(say) else "")
             return
         # obj is None: fall through to the deterministic path
 
     # ---- deterministic fallback (no live model) -------------------
     yield _sse({"type": "status", "state": "parsing"})
     _mock = get_llm("mock")
-    parsed = parse_scheduling_request(text, today=today, llm=_mock)
+    parsed = parsed_peek
 
     if isinstance(parsed, ParsedRequest):
         yield from _run_plan(parsed.intent, llm, llm_name, forecast_source, today)

@@ -1,0 +1,6 @@
+{
+  "title": "Retained heat load in Harara",
+  "text": "Retained heat load is Harara's simple model of how heat builds up in a worker across the day. Each worked hour adds an amount that grows with how far WBGT is above a reference limit for that crew. That load then decays slowly from hour to hour rather than clearing at once, so back-to-back hours in the heat stack up. The peak retained load is the highest value reached during the day, and it is the number Harara's scheduler tries to hold down. It is a transparent one-state model for comparing plans, not a physiological core-temperature prediction.",
+  "source": "Harara technical report, section 8 (scheduling)",
+  "keywords": ["retained", "heat", "load", "peak", "strain", "model", "decay", "build up", "accumulate"]
+}
