@@ -27,7 +27,7 @@ export function ArtifactCard({
   const [theme] = useTheme();
   const [plan, setPlan] = useState(initial);
   const [focused, setFocused] = useState<number | null>(null);
-  const [policies, setPolicies] = useState<Policies>({ calendar: true, reactive: false });
+  const [policies, setPolicies] = useState<Policies>({ calendar: true, reactive: false, earlier: false });
   const [pending, setPending] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -59,15 +59,23 @@ export function ArtifactCard({
   const leadOf = (iso: string) => Math.max(0, Math.round((+new Date(iso) - +new Date(isoToday())) / 86400000));
   const curLead = leadOf(req.date);
 
+  const hotter = s.peak_plan > s.peak_calendar + 0.05;
   const headline =
-    `Worst point of the day: heat load ${fmt(s.peak_plan, 1)}, down from ${fmt(s.peak_calendar, 1)} ` +
-    `under the fixed rule, same ${fmt(s.work_hours_delivered_plan, 0)} hours worked.`;
+    `The crew is on site ${fmt(s.span_hours_plan, 0)} hours for ${fmt(s.work_hours_delivered_plan, 0)} worked, ` +
+    `no longer than the ${fmt(s.span_hours_calendar, 0)} the fixed rule would keep them, and the day stays in ` +
+    `${s.work_blocks_plan} ${s.work_blocks_plan === 1 ? "block" : "blocks"}.`;
+  const heatLine = hotter
+    ? `Held to that window it does not beat the fixed rule on retained heat load: peak ${fmt(s.peak_plan, 1)} ` +
+      `against ${fmt(s.peak_calendar, 1)}. A plain earlier start reaches ${fmt(s.earlier_start_fixed.peak, 1)}.`
+    : `Peak retained heat load is ${fmt(s.peak_plan, 1)}, against ${fmt(s.peak_calendar, 1)} under the fixed rule, ` +
+      `at the same hours worked.`;
 
   const body = (
     <div className={`flex flex-col gap-4 ${pending ? "opacity-50" : ""}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-h4 leading-snug text-ink">{headline}</p>
+          <p className="mt-1 text-sm text-ink-secondary">{heatLine}</p>
           <p className="mono mt-1 text-sm text-ink-muted">
             {prettyDate(plan.meta.date)} · {plan.meta.location.lat.toFixed(2)}, {plan.meta.location.lon.toFixed(2)} · {plan.meta.forecast_source}
           </p>
@@ -109,6 +117,7 @@ export function ArtifactCard({
           <span className="mono text-micro uppercase text-ink-muted">show</span>
           <button type="button" aria-pressed={policies.calendar} className={`${chip} ${policies.calendar ? on : off}`} onClick={() => setPolicies((p) => ({ ...p, calendar: !p.calendar }))}>fixed rule</button>
           <button type="button" aria-pressed={policies.reactive} className={`${chip} ${policies.reactive ? on : off}`} onClick={() => setPolicies((p) => ({ ...p, reactive: !p.reactive }))}>stop when hot</button>
+          <button type="button" aria-pressed={policies.earlier} className={`${chip} ${policies.earlier ? on : off}`} onClick={() => setPolicies((p) => ({ ...p, earlier: !p.earlier }))}>earlier start</button>
         </div>
         {canReplan && !embedded && (
           <>

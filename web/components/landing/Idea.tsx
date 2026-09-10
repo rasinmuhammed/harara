@@ -26,7 +26,7 @@ const STEPS: { n: 1 | 2 | 3 | 4; title: string; body: string }[] = [
   {
     n: 4,
     title: "What the forecast-driven plan does",
-    body: "Same total hours. It works the cool morning at full rate, eases through the forecast peak, and picks the work back up as the heat drops, so the worst retained heat load is lower across the whole day.",
+    body: "Same total hours, and the crew is on site no longer than the fixed rule keeps them, in no more pieces. Within that window it works the cool hours and eases through the forecast peak. Holding the day short is the constraint; the retained-heat effect then depends on how hot the day is.",
   },
 ];
 
@@ -71,13 +71,17 @@ export function Idea({ plan: initial }: { plan: PlanResponse | null }) {
                         month: "long",
                         timeZone: "UTC",
                       })}{" "}
-                      that is{" "}
-                      <strong className="mono text-ink">{fmt(plan.summary.pct_peak_reduction, 1)}%</strong> off the worst
-                      retained heat load and{" "}
-                      <strong className="mono text-ink">{fmt(plan.summary.pct_tail_reduction, 1)}%</strong> off the p90
-                      tail, with the same{" "}
+                      the crew is on site{" "}
+                      <strong className="mono text-ink">{fmt(plan.summary.span_hours_plan, 0)} h</strong> against{" "}
+                      <strong className="mono text-ink">{fmt(plan.summary.span_hours_calendar, 0)} h</strong> under the
+                      fixed rule, for the same{" "}
                       <strong className="mono text-ink">{fmt(plan.summary.work_hours_delivered_plan, 1)}</strong> hours
-                      worked as the fixed rule.
+                      worked. The worst retained heat load is{" "}
+                      <strong className="mono text-ink">
+                        {fmt(Math.abs(plan.summary.pct_peak_reduction), 1)}%{" "}
+                        {plan.summary.pct_peak_reduction >= 0 ? "below" : "above"}
+                      </strong>{" "}
+                      the fixed rule.
                     </p>
                   )}
                 </div>

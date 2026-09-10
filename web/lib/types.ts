@@ -23,11 +23,14 @@ export interface HourRow {
   plan_work_fraction: number;
   calendar_work_fraction: number;
   reactive_work_fraction: number;
+  earlier_start_work_fraction: number;
   retained_load_plan: number;
   retained_load_calendar: number;
   retained_load_reactive: number;
+  retained_load_earlier: number;
   plan_state: PlanState;
   over_threshold: boolean;
+  on_site: boolean;
   cycle: string;
 }
 
@@ -49,6 +52,15 @@ export interface PlanSummary {
   wbgt_ref_c: number;
   threshold_c: number;
   solver_status: string;
+  span_hours_plan: number;
+  span_hours_calendar: number;
+  onsite_rest_hours_plan: number;
+  onsite_rest_hours_calendar: number;
+  cumulative_exposure_plan: number;
+  cumulative_exposure_calendar: number;
+  work_blocks_plan: number;
+  work_blocks_calendar: number;
+  earlier_start_fixed: { peak: number; tail: number; span_hours: number };
 }
 
 export interface PlanMeta {

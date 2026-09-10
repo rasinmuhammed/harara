@@ -8,11 +8,11 @@ export function RawTable({ hours, theme }: { hours: HourRow[]; theme: "light" | 
     <div className="overflow-x-auto rounded-lg border border-border">
       <table className="w-full min-w-[520px] border-collapse text-sm">
         <caption className="sr-only">
-          Hour by hour forecast WBGT, the plan work fraction, the calendar ban work fraction, and the plan retained heat load.
+          Hour by hour forecast WBGT, the plan work fraction, the calendar ban work fraction, the earlier-start block, whether the hour is inside the plan on-site window, and the plan retained heat load.
         </caption>
         <thead>
           <tr className="border-b border-border bg-surface-2 text-left text-ink-secondary">
-            {["Local", "WBGT C", "Plan", "Ban", "Retained", "State"].map((h) => (
+            {["Local", "WBGT C", "Plan", "Ban", "Earlier", "On site", "Retained", "State"].map((h) => (
               <th key={h} scope="col" className="px-3 py-2 font-medium">{h}</th>
             ))}
           </tr>
@@ -29,6 +29,8 @@ export function RawTable({ hours, theme }: { hours: HourRow[]; theme: "light" | 
               </td>
               <td className="px-3 py-1.5 text-ink">{fmt(h.plan_work_fraction, 2)}</td>
               <td className="px-3 py-1.5 text-ink-muted">{fmt(h.calendar_work_fraction, 2)}</td>
+              <td className="px-3 py-1.5 text-ink-muted">{fmt(h.earlier_start_work_fraction, 2)}</td>
+              <td className="px-3 py-1.5 text-ink-muted">{h.on_site ? "yes" : "off"}</td>
               <td className="px-3 py-1.5 text-ink">{fmt(h.retained_load_plan, 2)}</td>
               <td className="px-3 py-1.5">
                 <span className="inline-flex items-center gap-1.5 text-micro uppercase" style={{ color: `var(--state-${h.plan_state})` }}>

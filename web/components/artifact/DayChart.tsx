@@ -19,6 +19,7 @@ const STRIP_T = WORK_T + WORK_H + 14;
 export interface Policies {
   calendar: boolean;
   reactive: boolean;
+  earlier: boolean;
 }
 
 function nowLocalHour(tz: string): number | null {
@@ -39,7 +40,7 @@ export function DayChart({
   theme,
   focusedHour,
   onFocusHour,
-  policies = { calendar: true, reactive: false },
+  policies = { calendar: true, reactive: false, earlier: false },
   showBand = true,
   stage = 4,
 }: {
@@ -56,6 +57,7 @@ export function DayChart({
   const showThr = stage >= 2;
   const showFixed = stage >= 3 && policies.calendar;
   const showPlan = stage >= 4;
+  const showEarlier = stage >= 4 && policies.earlier;
   const svgH = stage >= 3 ? H : PLOT_B + 40;
   const reduced = usePrefersReducedMotion();
   const gid = useId().replace(/:/g, "");
@@ -106,11 +108,16 @@ export function DayChart({
     onFocusHour(nums[i]);
   }
 
-  const bars = (which: "plan" | "calendar" | "reactive", fill: string, hatch: boolean) =>
+  const onSiteHours = hours.filter((h) => h.on_site);
+  const onFirst = onSiteHours.length ? onSiteHours[0].hour : null;
+  const onLast = onSiteHours.length ? onSiteHours[onSiteHours.length - 1].hour : null;
+
+  const bars = (which: "plan" | "calendar" | "reactive" | "earlier", fill: string, hatch: boolean) =>
     hours.map((h) => {
       const frac =
         which === "plan" ? h.plan_work_fraction
         : which === "calendar" ? h.calendar_work_fraction
+        : which === "earlier" ? h.earlier_start_work_fraction
         : h.reactive_work_fraction;
       const bh = frac * WORK_H;
       const bw = Math.max(5, cellW * (which === "plan" ? 0.56 : 0.7));
@@ -131,6 +138,9 @@ export function DayChart({
     (showFixed ? `The fixed calendar ban works full rate outside 10:00 to 15:30 whatever the forecast. ` : ``) +
     (showPlan
       ? `The plan works the cool early hours, rests ${restHours.length} hours through the peak, and resumes late. `
+      : ``) +
+    (showPlan && onFirst != null && onLast != null
+      ? `The shaded band under the work bars is the on-site window, ${fmtHour(onFirst)} to ${fmtHour(onLast)}, held no wider than the fixed rule keeps the crew. `
       : ``) +
     `Colour is WBGT, cool blue to hot red with a hard break at 32.1 C.`;
 
@@ -196,7 +206,16 @@ export function DayChart({
         {stage >= 3 && (
           <text x={M.l} y={WORK_T - 8} className="mono" fontSize="10" letterSpacing="0.06em" fill="var(--text-muted)">WORK RATE BY HOUR, SAME TOTAL</text>
         )}
+        {showPlan && onFirst != null && onLast != null && (
+          <g>
+            <rect x={x(onFirst) - cellW / 2} y={WORK_T - 4} width={x(onLast) - x(onFirst) + cellW}
+              height={WORK_H + 8} fill="var(--accent-weak)" opacity="0.5" />
+            <text x={x(onFirst) - cellW / 2 + 3} y={WORK_T + WORK_H + 2} className="mono" fontSize="9"
+              fill="var(--text-muted)">on site {fmtHour(onFirst)} to {fmtHour(onLast)}</text>
+          </g>
+        )}
         {showFixed && bars("calendar", "var(--compare)", true)}
+        {showEarlier && bars("earlier", "var(--state-work)", true)}
         {showPlan && policies.reactive && bars("reactive", "var(--state-reduced)", true)}
         {showPlan && bars("plan", "var(--accent)", false)}
         {stage >= 3 && (
@@ -210,6 +229,7 @@ export function DayChart({
               {showPlan && <rect x={cx - cellW / 2 + 1} y={STRIP_T} width={cellW - 2} height="9" rx="2" fill={`var(--state-${h.plan_state})`} opacity="0.9" />}
               {showPlan && h.uncertain && <circle cx={cx} cy={STRIP_T + 4.5} r="1.6" fill="var(--bg)" />}
               <text x={cx} y={STRIP_T + 28} textAnchor="middle" className="mono" fontSize="10"
+                opacity={showPlan && !h.on_site ? 0.4 : 1}
                 fill={focusedHour === h.hour ? "var(--text)" : "var(--text-muted)"} fontWeight={focusedHour === h.hour ? 700 : 400}>{h.hour}</text>
             </g>
           );
@@ -249,7 +269,9 @@ function Legend({ policies, showFixed, showPlan }: { policies: Policies; showFix
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-ink-secondary">
       {showPlan && <span className="inline-flex items-center gap-2"><span className="h-2.5 w-4 rounded-sm bg-accent" /> plan</span>}
+      {showPlan && <span className="inline-flex items-center gap-2"><span className="h-2.5 w-4 rounded-sm bg-accent-weak" /> on-site window</span>}
       {showFixed && <span className="inline-flex items-center gap-2"><span className="h-2.5 w-4 rounded-sm border" style={{ borderColor: "var(--compare)" }} /> fixed rule</span>}
+      {showPlan && policies.earlier && <span className="inline-flex items-center gap-2"><span className="h-2.5 w-4 rounded-sm border" style={{ borderColor: "var(--state-work)" }} /> earlier start</span>}
       {showPlan && policies.reactive && <span className="inline-flex items-center gap-2"><span className="h-2.5 w-4 rounded-sm border" style={{ borderColor: "var(--state-reduced)" }} /> stop when hot</span>}
       {showPlan && (["work", "reduced", "stop"] as const).map((s) => (
         <span key={s} className="inline-flex items-center gap-1.5"><span style={{ color: `var(--state-${s})` }}>{STATE_GLYPH[s]}</span>{STATE_LABEL[s]}</span>
