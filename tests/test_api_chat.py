@@ -162,13 +162,11 @@ def test_general_question_gets_an_answer_not_a_clarification():
     assert frames[-1]["type"] == "done"
 
 
-def test_answer_has_no_ungrounded_number_on_the_mock_path():
-    # the mock has no converse(); the question path must fall back to the
-    # deterministic answer, which quotes only the published constants
-    from api.chat import _answer_is_grounded, _DET_ANSWER
-    assert _answer_is_grounded(_DET_ANSWER, set())
-    assert not _answer_is_grounded("the load will hit 41.7 by noon", set())
-    assert _answer_is_grounded("the load will hit 41.7 by noon", {"41.7"})
+def test_number_guard_rejects_a_fabricated_figure():
+    from api.chat import _numbers_ok, _DET_ANSWER
+    assert _numbers_ok(_DET_ANSWER, set())
+    assert not _numbers_ok("the load will hit 41.7 by noon", set())
+    assert _numbers_ok("the load will hit 41.7 by noon", {"41.7"})
 
 
 def test_scheduling_attempt_missing_fields_still_asks_back():
