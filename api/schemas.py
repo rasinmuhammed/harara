@@ -24,6 +24,10 @@ class PlanRequest(BaseModel):
     workload_class: WorkloadClass = "moderate"
     acclimatised: bool = True
     tz: str = "Asia/Qatar"
+    # worker-time controls; all optional and back-compatible
+    max_span_hours: Optional[float] = Field(default=None, gt=0, le=24)
+    rest_allowance_hours: float = Field(default=2.0, ge=0, le=12)
+    earlier_start: bool = True
 
 
 class HourRow(BaseModel):
@@ -36,11 +40,14 @@ class HourRow(BaseModel):
     plan_work_fraction: float
     calendar_work_fraction: float
     reactive_work_fraction: float       # the stop-when-hot rule (policy_reactive)
+    earlier_start_work_fraction: float  # the earlier-start fixed block
     retained_load_plan: float
     retained_load_calendar: float
     retained_load_reactive: float
+    retained_load_earlier: float
     plan_state: PlanState
     over_threshold: bool
+    on_site: bool                       # hour is inside the plan's on-site window
     cycle: str                         # plain per-hour instruction
 
 
@@ -62,6 +69,16 @@ class PlanSummary(BaseModel):
     wbgt_ref_c: float
     threshold_c: float
     solver_status: str
+    # worker-time: the plan is never worse than the calendar rule on these
+    span_hours_plan: float
+    span_hours_calendar: float
+    onsite_rest_hours_plan: float
+    onsite_rest_hours_calendar: float
+    cumulative_exposure_plan: float
+    cumulative_exposure_calendar: float
+    work_blocks_plan: int
+    work_blocks_calendar: int
+    earlier_start_fixed: dict           # {peak, tail, span_hours}
 
 
 class PlanMeta(BaseModel):

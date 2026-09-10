@@ -136,6 +136,10 @@ class RunSchedulerRequest(BaseModel):
     forecast: Optional[GetForecastResponse] = None
     beta: float = Field(default=0.90, gt=0, lt=1)
     seed: int = 0
+    # worker-time constraints (docs/scheduler_worker_time_plan.md)
+    max_span_hours: Optional[float] = Field(default=None, gt=0, le=24)
+    rest_allowance_hours: float = Field(default=2.0, ge=0, le=12)
+    earlier_start: bool = True
 
     @model_validator(mode="after")
     def _has_input(self):
@@ -150,6 +154,8 @@ class HourPlan(BaseModel):
     work_fraction: float
     allowed: bool
     reason_not_allowed: Optional[str] = None
+    on_site: bool = True                       # inside the plan's on-site window
+    earlier_start_work_fraction: float = 0.0   # the earlier-start baseline
 
 
 class RunSchedulerResponse(BaseModel):
@@ -167,6 +173,14 @@ class RunSchedulerResponse(BaseModel):
     applied_rule_ids: list[str]
     solver_status: str
     notes: list[str] = Field(default_factory=list)
+    # worker-time (docs/scheduler_worker_time_plan.md)
+    plan_window: Optional[list[str]] = None    # ["HH:00", "HH:00"] on-site window
+    plan_span_hours: float = 0.0
+    plan_onsite_rest_hours: float = 0.0
+    plan_work_blocks: int = 0
+    earlier_start_peak_strain: float = 0.0
+    earlier_start_tail_strain: float = 0.0
+    earlier_start_span_hours: float = 0.0
 
 
 # --------------------------------------------------------------------------

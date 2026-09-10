@@ -70,9 +70,12 @@ def test_plan_shape_and_invariants():
     assert math.isclose(s.work_hours_delivered_calendar, 8.0, abs_tol=1e-6)
     assert s.work_shortfall_plan == 0.0
     assert s.stop_hours_calendar == 6            # the 10:00-15:30 clock ban
-    # the optimiser is never worse than the calendar ban on peak retained load
-    assert s.peak_plan <= s.peak_calendar + 1e-6
-    assert s.pct_peak_reduction > 0
+    # the corrected guarantee: the plan never keeps the crew on site longer,
+    # resting in the heat longer, or in more pieces than the calendar rule
+    assert s.span_hours_plan <= s.span_hours_calendar + 1e-6
+    assert s.onsite_rest_hours_plan <= s.onsite_rest_hours_calendar + 1e-6
+    assert s.work_blocks_plan <= s.work_blocks_calendar
+    assert set(s.earlier_start_fixed) == {"peak", "tail", "span_hours"}
 
 
 def test_api_aggregates_match_tool_layer():
@@ -125,8 +128,9 @@ def test_plan_has_band_reactive_and_cycle():
         }
     s = p.summary
     assert s.peak_reactive > 0
-    # the optimiser is never worse than the reactive rule on peak load
-    assert s.peak_plan <= s.peak_reactive + 1e-6
+    # per-hour on_site flag is coherent with the reported span
+    on = [h for h in p.hours if h.on_site]
+    assert len(on) == s.span_hours_plan or s.solver_status == "no-allowed-hours"
     assert p.meta.lead_days >= 1
 
 
@@ -152,5 +156,5 @@ def test_rate_limit_falls_back_to_synthetic(monkeypatch):
     )
     p = build_plan(req, forecast_source="open-meteo")
     assert len(p.hours) > 0
-    assert p.summary.peak_plan <= p.summary.peak_calendar + 1e-6
+    assert p.summary.span_hours_plan <= p.summary.span_hours_calendar + 1e-6
     assert "fallback" in p.meta.forecast_source.lower()

@@ -20,7 +20,8 @@ from src.agent.schemas import (
 )
 from src.heat_stress import continuous_work_limit_c
 from src.scheduler import (
-    policy_calendar, retained_load_path, schedule_cvar,
+    _worked_span, cumulative_exposure, policy_calendar, policy_earlier_start,
+    retained_load_path, schedule_windowed,
 )
 from src.solar import cos_solar_zenith_angle
 from src.wbgt import wbgt_liljegren_c
@@ -97,16 +98,35 @@ def run_scheduler(req: RunSchedulerRequest) -> RunSchedulerResponse:
 
     wbgt_ref = continuous_work_limit_c(req.crew.workload, req.crew.acclimatised)
 
+    span_cap_h = req.max_span_hours
+    if span_cap_h is None:
+        span_cap_h = req.required_work_hours + req.rest_allowance_hours
+
+    w_ear = (policy_earlier_start(wbgt, allowed, req.required_work_hours)
+             if req.earlier_start else np.zeros(H))
+
     if allowed.any():
-        res = schedule_cvar(wbgt[None, :], allowed, req.required_work_hours,
-                            beta=req.beta, wbgt_ref=wbgt_ref)
-        w_plan = res.w
-        status = res.status
+        wr = schedule_windowed(
+            wbgt[None, :], allowed, req.required_work_hours,
+            wbgt_point=wbgt, beta=req.beta, wbgt_ref=wbgt_ref,
+            span_cap_h=span_cap_h, rest_allowance_h=req.rest_allowance_hours,
+            w_ref=(w_ear if req.earlier_start else None))
+        w_plan = wr.w
+        status = wr.status
+        t_in, t_out = int(wr.t_in), int(wr.t_out)
+        span_hours = float(wr.span_hours)
+        onsite_rest = float(wr.onsite_rest_hours)
+        n_blocks = int(wr.n_blocks)
     else:
         w_plan = np.zeros(H)
         status = "no-allowed-hours"
+        t_in, t_out = 0, H - 1
+        span_hours = onsite_rest = 0.0
+        n_blocks = 0
         notes.append("Every working hour is banned or over the stop-work "
                      "threshold; no work can be scheduled.")
+
+    on_site = [bool(t_in <= i <= t_out) for i in range(H)]
 
     calendar_local = np.array([
         dt.datetime.combine(req.target_local_date, dt.time(int(h)), tzinfo=tz)
@@ -115,12 +135,15 @@ def run_scheduler(req: RunSchedulerRequest) -> RunSchedulerResponse:
 
     path_plan = retained_load_path(w_plan, wbgt, wbgt_ref=wbgt_ref)
     path_base = retained_load_path(w_base, wbgt, wbgt_ref=wbgt_ref)
+    path_ear = retained_load_path(w_ear, wbgt, wbgt_ref=wbgt_ref)
 
     delivered = float(w_plan.sum())
     plan_rows = [
         HourPlan(local_time=calendar_local[i], wbgt_c=float(wbgt[i]),
                  work_fraction=round(float(w_plan[i]), 3),
-                 allowed=bool(allowed[i]), reason_not_allowed=reasons[i])
+                 allowed=bool(allowed[i]), reason_not_allowed=reasons[i],
+                 on_site=on_site[i],
+                 earlier_start_work_fraction=round(float(w_ear[i]), 3))
         for i in range(H)]
 
     return RunSchedulerResponse(
@@ -139,4 +162,12 @@ def run_scheduler(req: RunSchedulerRequest) -> RunSchedulerResponse:
         applied_rule_ids=list(req.constraints.rule_ids),
         solver_status=status,
         notes=notes,
+        plan_window=([f"{grid_hours[t_in]:02d}:00", f"{grid_hours[t_out]:02d}:00"]
+                     if allowed.any() else None),
+        plan_span_hours=round(span_hours, 2),
+        plan_onsite_rest_hours=round(onsite_rest, 2),
+        plan_work_blocks=n_blocks,
+        earlier_start_peak_strain=round(float(path_ear.max()), 3),
+        earlier_start_tail_strain=round(float(np.percentile(path_ear, TAIL_PCT)), 3),
+        earlier_start_span_hours=round(float(_worked_span(w_ear)), 2),
     )

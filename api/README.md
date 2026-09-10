@@ -5,7 +5,8 @@ It adds no domain logic: every number comes from the tool layer in
 `src/agent/` (`get_forecast` -> `compute_wbgt` -> `run_scheduler`). The
 comparison it exposes is the one in `docs/technical_report.md` section 8 --
 the forecast-driven optimiser against Qatar Decision 17/2021's fixed
-10:00-15:30 calendar ban, at the same delivered work-hours.
+10:00-15:30 calendar ban, at the same delivered work-hours and, now, with the
+crew's time on site held no longer than that rule keeps them.
 
 ## Endpoints
 
@@ -15,22 +16,41 @@ the forecast-driven optimiser against Qatar Decision 17/2021's fixed
 // request
 { "lat": 25.2854, "lon": 51.5310, "date": "2026-09-14",
   "required_work_hours": 8, "workload_class": "moderate",
-  "acclimatised": true, "tz": "Asia/Qatar" }
+  "acclimatised": true, "tz": "Asia/Qatar",
+  // optional worker-time controls
+  "max_span_hours": null,        // default: required_work_hours + rest_allowance_hours
+  "rest_allowance_hours": 2.0,   // on-site hours allowed over the work owed
+  "earlier_start": true }        // include the earlier-start fixed block
 ```
 
 Returns `hours[]` (per local hour 05:00-18:00: `wbgt_c`,
-`plan_work_fraction`, `calendar_work_fraction`, `retained_load_plan`,
-`retained_load_calendar`, `plan_state` = work|reduced|stop, `over_threshold`),
+`plan_work_fraction`, `calendar_work_fraction`, `earlier_start_work_fraction`,
+`retained_load_plan`, `retained_load_calendar`, `retained_load_earlier`,
+`plan_state` = work|reduced|stop, `over_threshold`, `on_site`),
 a `summary` (`peak_*`, `tail_*` = p90, `pct_*_reduction`, delivered hours and
 stop hours for both policies, `wbgt_ref_c`, `threshold_c`, `solver_status`),
 and `meta` (model, forecast source, lead-time note, Open-Meteo CC-BY
 attribution). `400` if `date` is outside the forecast horizon, `422` on an
 invalid body, `502` if the forecast upstream fails.
 
+The scheduler now solves the CVaR work/rest LP inside an outer search over
+contiguous on-site windows. The window is capped at `required_work_hours +
+rest_allowance_hours` and the day is held to at most two work blocks, so the
+plan can never keep a crew on site longer, resting in the heat longer, or in
+more pieces than the fixed 17/2021 calendar rule. The `summary` reports both
+sides of that: `span_hours_plan` / `span_hours_calendar`,
+`onsite_rest_hours_plan` / `_calendar`, `work_blocks_plan` / `_calendar`,
+`cumulative_exposure_plan` / `_calendar` (time-integrated heat dose over worked
+hours), and `earlier_start_fixed` (`{peak, tail, span_hours}` for the plain
+earlier-start block). Each `hours[]` row carries `on_site` for the plan's
+window.
+
 Note: neither policy is given a hard 32.1 C stop -- the optimiser minimises
-retained heat load at equal output, and hours where it still schedules work
-above 32.1 C are flagged `over_threshold` for the client to surface. The
-32.1 C stop-work clause is applied on top by the operator.
+retained heat load at equal output within the on-site window, and hours where
+it still schedules work above 32.1 C are flagged `over_threshold` for the
+client to surface. The 32.1 C stop-work clause is applied on top by the
+operator. Constraining worker time removes the peak-load advantage the
+unbounded optimiser showed: see `docs/technical_report.md` section 8.
 
 ### `POST /api/parse` (optional NL box)
 
@@ -43,7 +63,8 @@ deterministic mock model -- it never guesses a safety-relevant field.
 
 `{ "messages": [...], "context": { "plan": {...}?, "gathering": bool? } }`.
 Frames: `status`, `text` (word by word), `clarification`, `artifact` (the full
-`/api/plan` payload), `error`, `done`. A scheduling request is parsed
+`/api/plan` payload, including the worker-time summary fields), `error`,
+`done`. A scheduling request is parsed
 deterministically (fail-closed, gazetteer), planned, then explained; a
 question is answered by the configured model. The model never emits a number
 that reaches the client: plan figures come from the `artifact` frame and the

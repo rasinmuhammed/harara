@@ -38,7 +38,8 @@ from src.agent.schemas import (
 )
 from src.agent.tools import compute_wbgt, get_forecast, run_scheduler
 from src.scheduler import (
-    PHI_DEFAULT, policy_calendar, policy_reactive, retained_load_path,
+    PHI_DEFAULT, _work_blocks, _worked_span, cumulative_exposure,
+    policy_calendar, policy_reactive, retained_load_path,
 )
 from src.wbgt import QATAR_WBGT_STOP_WORK_THRESHOLD_C
 
@@ -218,6 +219,9 @@ def plan_with_sched(
         constraints=RuleConstraints(),
         timezone=req.tz,
         wbgt_hours=wbgt_hours,
+        max_span_hours=req.max_span_hours,
+        rest_allowance_hours=req.rest_allowance_hours,
+        earlier_start=req.earlier_start,
     ))
 
     plan = sched.plan
@@ -229,10 +233,18 @@ def plan_with_sched(
 
     w_cal = policy_calendar(local_hours, ones)
     w_react = policy_reactive(wbgt, ones, req.required_work_hours)
+    w_ear = np.array([hp.earlier_start_work_fraction for hp in plan], dtype=float)
 
     path_plan = retained_load_path(w_plan, wbgt, phi=PHI_DEFAULT, wbgt_ref=wbgt_ref)
     path_cal = retained_load_path(w_cal, wbgt, phi=PHI_DEFAULT, wbgt_ref=wbgt_ref)
     path_react = retained_load_path(w_react, wbgt, phi=PHI_DEFAULT, wbgt_ref=wbgt_ref)
+    path_ear = retained_load_path(w_ear, wbgt, phi=PHI_DEFAULT, wbgt_ref=wbgt_ref)
+
+    cal_span = float(_worked_span(w_cal))
+    cal_rest = max(0.0, cal_span - float(w_cal.sum()))
+    cal_blocks = len(_work_blocks(w_cal))
+    dose_plan = cumulative_exposure(w_plan, wbgt, wbgt_ref)
+    dose_cal = cumulative_exposure(w_cal, wbgt, wbgt_ref)
 
     peak_plan = float(sched.plan_peak_strain)
     peak_cal = float(sched.baseline_peak_strain)
@@ -259,11 +271,14 @@ def plan_with_sched(
             plan_work_fraction=round(float(w_plan[i]), 3),
             calendar_work_fraction=round(float(w_cal[i]), 3),
             reactive_work_fraction=round(float(w_react[i]), 3),
+            earlier_start_work_fraction=round(float(w_ear[i]), 3),
             retained_load_plan=round(float(path_plan[i]), 3),
             retained_load_calendar=round(float(path_cal[i]), 3),
             retained_load_reactive=round(float(path_react[i]), 3),
+            retained_load_earlier=round(float(path_ear[i]), 3),
             plan_state=_state(float(w_plan[i])),
             over_threshold=bool(wbgt[i] > THRESHOLD_C),
+            on_site=bool(plan[i].on_site),
             cycle=_cycle(float(w_plan[i])),
         ))
 
@@ -285,6 +300,19 @@ def plan_with_sched(
         wbgt_ref_c=round(float(wbgt_ref), 1),
         threshold_c=THRESHOLD_C,
         solver_status=sched.solver_status,
+        span_hours_plan=round(float(sched.plan_span_hours), 2),
+        span_hours_calendar=round(cal_span, 2),
+        onsite_rest_hours_plan=round(float(sched.plan_onsite_rest_hours), 2),
+        onsite_rest_hours_calendar=round(cal_rest, 2),
+        cumulative_exposure_plan=round(dose_plan, 2),
+        cumulative_exposure_calendar=round(dose_cal, 2),
+        work_blocks_plan=int(sched.plan_work_blocks),
+        work_blocks_calendar=int(cal_blocks),
+        earlier_start_fixed={
+            "peak": round(float(sched.earlier_start_peak_strain), 3),
+            "tail": round(float(sched.earlier_start_tail_strain), 3),
+            "span_hours": round(float(sched.earlier_start_span_hours), 2),
+        },
     )
 
     dry_hot = bool(fc is not None and _dry_hot(fc.hours, req.date, req.tz,
