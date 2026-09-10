@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { fetchPlan, parsePlan, streamChat, type ChatMessageIn } from "@/lib/api";
 import type { ChatFrame, ChatTurn, PlanResponse, WorkloadClass } from "@/lib/types";
-import { DOHA } from "@/lib/types";
+import { DOHA, LOCATION_PRESETS } from "@/lib/types";
 import { isoPlusDays } from "@/lib/format";
 import { decodeShare } from "@/lib/share";
 import dynamic from "next/dynamic";
@@ -199,10 +199,19 @@ export function AppShell() {
           return;
         }
         // not a complete plan request: let the assistant handle it. It answers
-        // a question, or streams a clarification frame for a real scheduling try.
+        // a question, updates the controls, or streams a clarification.
         abort.current = new AbortController();
         const hist: ChatMessageIn[] = [...history(), { role: "user", content: text }];
         const gathering = turns.some((t) => t.role === "assistant" && t.clarification);
+        const cur = {
+          name: locName,
+          lat: reqRef.current.lat,
+          lon: reqRef.current.lon,
+          date: reqRef.current.date,
+          workload: reqRef.current.workload_class,
+          acclimatised: reqRef.current.acclimatised,
+          hours: reqRef.current.required_work_hours,
+        };
         await streamChat(
           hist,
           (f: ChatFrame) => {
@@ -218,6 +227,20 @@ export function AppShell() {
             else if (f.type === "artifact") {
               setPlan(f.plan);
               setPhase("ready");
+              // keep the control bar in step with what the chat just planned
+              const rq = f.plan.meta?.request;
+              if (rq) {
+                setReq((p) => ({
+                  ...p,
+                  lat: rq.lat, lon: rq.lon, date: rq.date,
+                  required_work_hours: rq.required_work_hours,
+                  workload_class: rq.workload_class, acclimatised: rq.acclimatised,
+                }));
+                const preset = LOCATION_PRESETS.find(
+                  (p) => Math.abs(p.lat - rq.lat) < 0.02 && Math.abs(p.lon - rq.lon) < 0.02,
+                );
+                setLocName(preset?.name ?? "Custom site");
+              }
             } else if (f.type === "error")
               patchTurn(b.id, (t) => ({ ...t, error: f.message, status: undefined }));
             else if (f.type === "done")
@@ -226,6 +249,7 @@ export function AppShell() {
           {
             signal: abort.current.signal,
             context: {
+              req: cur,
               ...(plan ? { plan: { summary: plan.summary, meta: plan.meta } } : {}),
               ...(gathering ? { gathering: true } : {}),
             },
@@ -323,7 +347,7 @@ export function AppShell() {
               Show conversation ({turns.filter((t) => t.role === "user").length})
             </button>
           )}
-          <Composer onSend={send} busy={busy} onStop={stopChat} />
+          <Composer onSend={send} busy={busy} onStop={stopChat} showHints={turns.length === 0} />
         </div>
       </div>
 

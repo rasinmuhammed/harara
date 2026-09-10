@@ -1,13 +1,22 @@
 "use client";
 import { useRef } from "react";
+
+const HINTS = [
+  "Plan tomorrow for a heavy crew at Lusail, 8 hours, new to the heat",
+  "Why does it rest in the afternoon?",
+  "What is WBGT?",
+];
+
 export function Composer({
   onSend,
   busy,
   onStop,
+  showHints = false,
 }: {
   onSend: (t: string) => void;
   busy: boolean;
   onStop: () => void;
+  showHints?: boolean;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   function submit() {
@@ -17,11 +26,26 @@ export function Composer({
     if (ref.current) ref.current.value = "";
   }
   return (
-    <div data-print-hide className="flex items-end gap-2 border-t border-border bg-bg px-3 py-3">
+    <div data-print-hide className="border-t border-border bg-bg px-3 py-3">
+      {showHints && !busy && (
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          {HINTS.map((h) => (
+            <button
+              key={h}
+              type="button"
+              onClick={() => onSend(h)}
+              className="rounded-full border border-border px-2.5 py-1 text-sm text-ink-secondary transition-colors hover:border-border-strong hover:text-ink"
+            >
+              {h}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="flex items-end gap-2">
       <textarea
         ref={ref}
         rows={1}
-        placeholder="Describe a shift the way you would to a colleague"
+        placeholder="Ask about the plan, or describe a shift to plan"
         aria-label="Message"
         onInput={(e) => {
           const el = e.currentTarget;
@@ -45,6 +69,7 @@ export function Composer({
           Send
         </button>
       )}
+      </div>
     </div>
   );
 }
