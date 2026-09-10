@@ -187,8 +187,9 @@ _WEATHER = re.compile(
 )
 
 _GREETING = re.compile(
-    r"^\s*(hi|hey+|hello|yo|sup|salaam|salam|good (morning|afternoon|evening)"
-    r"|thanks|thank you|cheers|ok|okay|cool|nice|great)\b[\s!.]*$",
+    r"^\s*(hi|hey+|hello|hiya|yo|sup|salaam|salam|hi there|hey there"
+    r"|good (morning|afternoon|evening)|thanks|thank you|cheers"
+    r"|ok|okay|cool|nice|great)\b",
     re.I,
 )
 _QUESTIONISH = re.compile(r"\?\s*$|^\s*(what|why|how|when|which|is|are|can|could|do|does|should)\b", re.I)
