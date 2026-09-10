@@ -19,12 +19,17 @@ inland sites. A recurring dry-advection ("Shamal") regime, roughly 52 days per
 year, does not systematically degrade the gridded product when compared against
 station observations over 12 years.
 
-Two findings are positive. First, Qatar's 10:00 to 15:30 calendar ban covers
-about 25% of daylight warm-season hours, and roughly 60% of the hours that are
-physiologically unsafe for heavy work by unacclimatised workers fall outside
-it; over-restriction is about 6%. Second, in simulation a risk-optimal
-work/rest schedule reduces mean peak thermal load by about 14% and its tail by
-about 20% relative to the calendar rule, at equal output. A physics-based
+One gap-analysis finding is positive: Qatar's 10:00 to 15:30 calendar ban
+covers about 25% of daylight warm-season hours, and roughly 60% of the hours
+that are physiologically unsafe for heavy work by unacclimatised workers fall
+outside it, while over-restriction is about 6%. An earlier claim that a
+risk-optimal daily schedule reduces mean peak thermal load by about 14% at
+equal output did not survive scrutiny: that reduction was obtained by
+spreading the same work across a longer on-site day, which for a bussed-in
+accommodation worker is a cost. Once the crew's time on site, day
+fragmentation and cumulative heat dose are held no worse than the calendar
+rule, the daily optimiser no longer beats it on peak load; the rule's fixed
+midday break is load-bearing on the hottest days (section 8). A physics-based
 particle filter estimates individual core temperature with 0.08 C MAE on
 synthetic data when a skin-temperature patch is available, compared with 0.36 C
 for a heart-rate-only Kalman filter; this has not been validated against
@@ -409,19 +414,57 @@ percentile of day strain over forecast scenarios, solved as a linear program
 analog residual resampling of the forecast archive by default, or from the
 calibrated GEFS ensemble with `--uncertainty gefs`.
 
+**Worker time is a constraint, not a free variable.** The bare LP above
+minimises peak retained load with no bound on how long the crew is on site, so
+on a hot day it thins work into a wide, fragmented plateau: full output spread
+across a 14 to 15 hour on-site day around a long midday hole. For a bussed-in
+accommodation worker that on-site rest is not rest. The LP is now solved inside
+an outer search over contiguous on-site windows `[t_in, t_out]` with
+`t_out - t_in + 1 <= work_hours + 2`; the day is held to at most two work
+blocks and no sub-1.5-hour block (enforced by discarding candidates after the
+solve, so no integer variable enters); and the per-window objective gains a
+total-variation penalty against fragmentation and a small deviation penalty
+toward an earlier-start reference block. The window score adds a residual cost
+for resting in the heat on site. A plain **earlier-start fixed block** (start
+at first light, work through, pause only for hours over 32.1 C) is scored the
+same way and shipped when it delivers the work and scores at least as well; it
+is also reported as a baseline in its own right. `cumulative_exposure`
+`= sum_h w_h * max(0, WBGT_h - 28)` is the time-integrated heat dose over
+worked hours, a metric a stretched day can worsen while lowering the peak. The
+outer search is 18 window solves for a 14- or 15-hour day. Details in
+`docs/scheduler_worker_time_plan.md`.
+
 Walk-forward over 236 held-out days (June 2025 to August 2026), scored against
-realised WBGT, all policies delivering the same 9 work-hours with no shortfall:
+realised WBGT, at the 24 hour lead (48 and 72 hour are within rounding):
 
-| Policy | Mean peak load | p90 | Regret vs oracle |
-|---|---|---|---|
-| Calendar (17/2021 style) | 8.01 | 16.15 | 2.22 |
-| Reactive (coolest safe hours first) | 8.18 | 16.96 | 2.39 |
-| Optimiser | 6.91 | 13.58 | 1.12 |
-| Clairvoyant (oracle) | 5.80 | 12.87 | 0 |
+| Policy | Peak load | p90 | Heat dose | On-site span h | On-site rest h | Blocks | Unmet |
+|---|---|---|---|---|---|---|---|
+| Calendar (17/2021 style) | 8.01 | 16.15 | 17.0 | 15.0 | 6.0 | 2.0 | 0% |
+| Earlier-start fixed block | 6.18 | 10.01 | 10.1 | 12.5 | 5.5 | 1.7 | 48% |
+| Reactive (coolest safe first) | 8.18 | 16.96 | 17.1 | 15.0 | 6.0 | 2.1 | 0% |
+| Optimiser (span-capped) | 11.90 | 20.86 | 25.7 | 10.9 | 1.9 | 1.0 | 0% |
+| Clairvoyant (oracle, span-capped) | 11.09 | 20.01 | 25.2 | 10.9 | 1.9 | 1.0 | 0% |
 
-The optimiser reduces mean peak strain by 14% relative to the calendar rule
-(95% interval on the reduction [+0.80, +1.39] at 24 h) and the p90 tail by 16
-to 20%, at no productivity cost, holding at 24, 48 and 72 hour leads.
+Worker-time guarantee: on all 236 days the optimiser's on-site span, on-site
+rest hours and block count are each at or below the calendar rule's (0
+violations, all three leads).
+
+**The 14% peak-load reduction does not survive.** It was bought with on-site
+hours: the unbounded optimiser lowered the peak by spreading work over a
+longer day. Held to `work + 2` hours and two blocks, the CVaR optimiser must
+cram full output around the midday peak and runs about 49% *hotter* than the
+calendar rule on mean peak retained load (interval [+3.41, +4.28] at 24 h),
+with a higher heat dose. The calendar rule's fixed 10:00 to 15:30 break is
+doing real protective work on the hottest days, and no worker-time-respecting
+daily optimiser beats it there. A plain earlier start is the best policy on
+heat (peak 6.2 against 8.0, p90 10.0 against 16.2, dose 10 against 17) and no
+worse on worker time, but on about half of peak-season days it cannot deliver
+all 9 work-hours without working over 32.1 C, so it trades output for safety
+rather than giving both. The honest conclusion: once worker time, day
+fragmentation and heat dose are constrained, the daily scheduling layer is
+not a free improvement over the enforceable calendar rule. The gains that
+matter are structural (section 12), and the daily layer's job is to be never
+worse for the worker than that rule.
 
 The stochastic (CVaR) optimiser is 3% worse than the deterministic
 point-forecast optimiser on analog scenarios (interval [-0.25, -0.11]): the
@@ -650,7 +693,13 @@ step against capsule temperature.
 4. The section 9 process and target models share a family, so real-world error
    will be larger; the pilot quantifies the mismatch.
 5. The scheduler uses one crew, one workload class and fixed acclimatisation,
-   with a passive-retention thermal load and no intraday re-planning.
+   with a passive-retention thermal load and no intraday re-planning. The
+   worker-time constraint bounds on-site hours and fragmentation but still does
+   not model the commute to and from the labour accommodation, heat in the
+   accommodation before and after the shift, cumulative fatigue across a
+   split shift, or whether an earlier start or a night shift is operationally
+   feasible at a given site. The earlier-start baseline's ~48% unmet-work rate
+   in peak season is a real limit of that policy, not an artefact.
 6. Wet-bulb via Stull (2011) has about 0.3 C RMS error, up to about 1 C bias
    near 42 C, which partly cancels in same-method differences.
 7. The GEFS reliability study is limited by about 10 overlap years and by using

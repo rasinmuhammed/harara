@@ -293,25 +293,35 @@ longer, or in more pieces than the calendar rule.
 
 ## 7. Revised results table (technical report S8)
 
-```
-Walk-forward over <N> held-out days, all policies delivering the same <w_req>
-work-hours with no shortfall:
+Walk-forward over 236 held-out days, 24 hour lead (48 and 72 within rounding):
 
-| Policy            | Peak load | p90  | Heat dose | On-site span h | On-site rest h | Work blocks |
-|-------------------|-----------|------|-----------|----------------|----------------|-------------|
-| Calendar 17/2021  |   x.xx    | x.xx |   xx.x    |     xx.x        |      x.x        |     2.0     |
-| Earlier-start fix |   x.xx    | x.xx |   xx.x    |     x.x         |      x.x        |     1.0     |
-| Reactive          |   x.xx    | x.xx |   xx.x    |     xx.x        |      x.x        |     x.x     |
-| Optimiser (capped)|   x.xx    | x.xx |   xx.x    |     x.x         |      x.x        |     x.x     |
-| Clairvoyant       |   x.xx    | x.xx |   xx.x    |     x.x         |      x.x        |     x.x     |
+| Policy | Peak load | p90 | Heat dose | On-site span h | On-site rest h | Blocks | Unmet |
+|---|---|---|---|---|---|---|---|
+| Calendar 17/2021 | 8.01 | 16.15 | 17.0 | 15.0 | 6.0 | 2.0 | 0% |
+| Earlier-start fixed block | 6.18 | 10.01 | 10.1 | 12.5 | 5.5 | 1.7 | 48% |
+| Reactive | 8.18 | 16.96 | 17.1 | 15.0 | 6.0 | 2.1 | 0% |
+| Optimiser (span-capped) | 11.90 | 20.86 | 25.7 | 10.9 | 1.9 | 1.0 | 0% |
+| Clairvoyant (span-capped) | 11.09 | 20.01 | 25.2 | 10.9 | 1.9 | 1.0 | 0% |
 
-Guarantee: on every scored day the optimiser's on-site span, on-site rest hours
-and work-block count are each <= the calendar rule's. Violations: 0 / <N>.
+Guarantee: 0 / 236 days where the optimiser's on-site span, on-site rest hours
+or block count exceeds the calendar rule's, all three leads.
 
-Headline: <optimiser peak reduction vs calendar> [interval], and
-<optimiser peak reduction vs earlier-start fixed> [interval]. <one sentence on
-whether the earlier-start block alone already closes the gap>.
-```
+Headline: the optimiser is about 49% *hotter* than the calendar rule on mean
+peak load (interval [+3.41, +4.28] at 24 h) and about 93% hotter than the
+earlier-start block. The 14% peak-load reduction reported before was bought
+with on-site hours and does not survive the span cap. The earlier-start block
+is the best on heat and no worse on worker time, but under-delivers work on
+~48% of peak-season days.
+
+**Solution hierarchy.** The safety gains that hold up are structural: which
+hours are workable at all, acclimatisation state, shade and hydration, and an
+earlier start where the site can take one. The daily scheduling layer sits on
+top of those and, once the crew's time on site is a constraint rather than a
+free variable, it is a bounded thing: its job is to be never worse for the
+worker than the enforceable calendar rule on span, fragmentation and heat
+dose, not to beat that rule on peak load. On the hottest days the rule's fixed
+midday break is doing the protective work and the daily optimiser cannot
+improve on it without keeping the crew out longer.
 
 S12 limitations gains: the constrained scheduler still does not model commute
 time, heat in the accommodation before and after the shift, split-shift fatigue,

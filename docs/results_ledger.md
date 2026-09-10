@@ -22,7 +22,8 @@ what changed as a consequence. Ordered chronologically.
 | 12c | Does CRPS-fit EMOS (per lead and month, walk-forward) fix the raw ensemble? | `src/emos.py` (nonhomogeneous Gaussian regression), `gefs_calibration.py`; walk-forward by year, block-bootstrap intervals. Backfill running (see 12a) | Backfill started, 3 of 20 years landed so far. On 2017-2019: ensemble-mean WBGT RMSE 1.3-1.5 C days 1-3 (1.7-1.8 C at the evening lead), spread-to-RMSE 0.46-0.51 (under-dispersed ~2x), EMOS CRPSS +0.15 to +0.17. Only 1 scorable year so the intervals are not yet informative; May cells are pooled | Built; runs on available years; full refresh via `run_all.sh GEFS_BACKFILL=1` |
 | 12d | With honest lead-growing spread, does stochastic scheduling beat the deterministic optimiser? | `scheduler_study.py --uncertainty gefs` (GEFS ensemble, EMOS, ensemble copula coupling), walk-forward on the 2010-2019 overlap. Backfill running | Not yet scored: needs the full 2010-2019 overlap for a paired verdict with a usable interval; 3 years available. The analog-scenario finding (row 15: hedging 3% worse) is unaffected and stands | Built; wired into `run_all.sh` stage 5, guarded on `data/gefs_emos.json` |
 | 13 | Does the calendar ban match the physiological hazard? | ACGIH TLV screening, `work_rest_analysis.py` | The ban covers 25% of daylight warm-season hours; 63% of the unsafe hours for heavy unacclimatised work fall outside it (1085 per year). Over-restriction is about 6% | Supported |
-| 14 | Does risk-optimal scheduling beat the calendar rule at equal output? | CVaR linear program, walk-forward, `scheduler_study.py` | Mean peak strain down 14% (interval [+0.80, +1.39]), tail down 16 to 20%, no shortfall, all leads | Supported |
+| 14 | Does risk-optimal scheduling beat the calendar rule at equal output? | CVaR linear program, walk-forward, `scheduler_study.py` | Mean peak strain down 14% (interval [+0.80, +1.39]), tail down 16 to 20%, no shortfall, all leads. **Revised by row 14a: the reduction was bought with on-site hours and does not survive once worker time is constrained** | Superseded by 14a |
+| 14a | Does the optimiser's advantage survive once worker time, day fragmentation and heat dose are constrained? | Outer search over contiguous on-site windows with the CVaR LP inner solve, total-variation and stability penalties, span cap = work-hours + 2, at most two work blocks, block filters applied post-solve (no MILP); earlier-start fixed block added as a baseline; walk-forward vs realised WBGT, block-bootstrap intervals, `scheduler_study.py` | No. Held to work + 2 h and two blocks the CVaR optimiser runs about 49% *hotter* than the calendar rule on mean peak load (interval [+3.41, +4.28] at 24 h) and carries a higher heat dose (25.7 vs 17.0), because it must cram full output around the midday peak; span 10.9 h vs 15.0, on-site rest 1.9 h vs 6.0, 1 block vs 2, 0 guarantee violations over 236 days. A plain earlier start is best on heat (peak 6.2 vs 8.0, p90 10.0 vs 16.2, dose 10.1 vs 17.0) and no worse on worker time, but leaves work undelivered on ~48% of peak-season days | Rejected. The 14% headline was an artefact of unbounded worker time. The calendar rule's fixed midday break is load-bearing on the hottest days; the daily layer's role is to be never worse for the worker than that rule, not to beat it |
 | 15 | Does the stochastic layer beat the deterministic optimiser (analog scenarios)? | Same study | Stochastic is 3% worse (interval [-0.25, -0.11]); the forecast is too accurate to need hedging | Rejected for this regime; conditional on a hard chance constraint or genuine ensembles |
 | 16 | Can a physics filter estimate individual core temperature better than heart rate alone? | Two-node model and particle filter, synthetic, `digital_twin_demo.py` | Heart-rate-only 0.36 C MAE; physics filter with HR, activity and a skin patch 0.083 C MAE, 92% coverage | Supported on synthetic data; see row 30 for real data |
 | 17 | Does the filter give useful anticipatory warning? | Forward propagation under a forecast ensemble | Recall 0.91 at alarm probability 0.35; forward probability rises from 0.34 to 0.86 as the crossing approaches; about 45 minutes of median warning | Partial on synthetic data; probability calibration is a pilot endpoint |
@@ -50,8 +51,18 @@ dangerous days; AI weather models degrading humid-heat stop-work decisions
 all leads while ECMWF IFS and AIFS miss 6 to 15%).
 
 Supported: the calendar ban leaves about 60% of the role-specific danger
-uncovered; risk-optimal scheduling reduces peak and tail heat strain by about
-14% and 20% at equal output.
+uncovered.
+
+Rejected on re-examination (row 14a): risk-optimal daily scheduling does not
+beat the calendar rule once the crew's time on site, day fragmentation and
+cumulative heat dose are constrained. The earlier 14% peak-load reduction came
+from spreading the same work across a longer on-site day, which for a
+bussed-in accommodation worker is a cost, not a saving. Held to a short span
+the optimiser runs hotter than the calendar rule; a plain earlier start is
+better on heat but under-delivers work on about half of peak-season days. The
+safety gains that hold are structural (which hours are workable at all,
+acclimatisation, shelter, an earlier start where feasible); the daily layer's
+job is to be never worse for the worker than the enforceable rule.
 
 Partly supported on real physiology (PROSPIE, rectal reference): the physics
 filter with a skin-temperature channel beats the heart-rate-only state of the
