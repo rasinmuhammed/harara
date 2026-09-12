@@ -276,9 +276,10 @@ GFS forecast wind is close to truth (+0.16 m/s), so the GFS cold WBGT bias is
 not a wind artefact. Shoulder months (April, October) carry only about 30
 daylight exceedance hours across the whole forecast era and are not scored. The
 truth is one station's patched series; the repo's 2000-2019 GEFS reforecast
-(Section 6) is the decade-scale complement for the GFS family, and its
-ensemble-mean WBGT RMSE of about 1.3 C at day +1 is consistent with the 1.0 to
-1.2 C deterministic-GFS MAE here.
+(Section 6) is the decade-scale complement for the GFS family, and its raw
+ensemble-mean WBGT RMSE of 1.63 C at day +1 (1.27 C EMOS-calibrated) is in the
+same range as the 1.0 to 1.2 C deterministic-GFS MAE here, both well behind
+the Open-Meteo blend.
 
 **Verdict: H-E rejected.** The AI model does not degrade humid-heat stop-work
 decisions relative to conventional NWP; AIFS matches the best conventional
@@ -381,11 +382,13 @@ On the network path used for development (about 0.2 MB/s single-connection) the
 full 2000-2019 May to September run takes on the order of 15 hours; it is run
 newest-year first so the overlap with the patched-WBGT record (2010-2019) is
 available soonest, and it is resumable at the (init-day, member) level so it
-survives restarts and picks up where it stopped. At the time of writing the
-backfill has been started and is running; the years that have landed feed the
-calibration and reliability chain below, and `run_all.sh` with
-`GEFS_BACKFILL=1` completes the fetch and refreshes every number in this
-section.
+survives restarts and picks up where it stopped. 2001 through 2019 are fully
+backfilled; 2000 is the one year still landing. That does not affect anything
+below: the patched-WBGT truth series starts in 2010, so 2000-2009 carry no
+overlap to score against regardless, and every result in section 6.4 already
+uses the full available 2010-2019 truth overlap. `run_all.sh` with
+`GEFS_BACKFILL=1` completes the fetch and refreshes this section if the
+backfill is ever repeated from scratch.
 
 ### 6.2 Radiation timing
 
@@ -422,31 +425,50 @@ peak-WBGT forecast will have a large error (EMOS mean peak minus
 patched-reanalysis peak above the training 90th percentile). It reports PR-AUC
 with a block-bootstrap interval against a spread-decile rule and the base rate.
 
-### 6.4 Results so far and scope
+### 6.4 Results, full 2010-2019 truth overlap
 
-These figures are from the first three backfill years (2017-2019) and are not
-yet a multi-year result; they refresh as the backfill lands more years, and the
-walk-forward EMOS scores below need enough years for a real leave-one-year-out.
+The GEFS x patched-WBGT overlap is 10 years (2010-2019); walk-forward scores
+the 7 years from 2013 (>= 3 training years required). Ensemble-mean WBGT RMSE
+is 1.63, 1.66 and 1.70 C at forecast days 1, 2 and 3; EMOS calibration
+(nonhomogeneous Gaussian regression, per lead and month) brings that to 1.27,
+1.32 and 1.37 C. For reference (non-paired, the archives do not overlap in
+time) the Open-Meteo blend achieves 0.80 to 1.00 C at the same leads - the raw
+GEFS point forecast is not competitive with the operational blend at this
+single coastal point, which is expected: GEFS v12 is a frozen 2000-vintage
+0.25 degree model, not a modern data-assimilating system.
 
-Ensemble-mean WBGT RMSE is about 1.3 to 1.5 C across forecast days 1 to 3,
-rising to about 1.7 to 1.8 C at the 18:00-local (evening) lead. For reference
-(non-paired, the archives do not overlap in time) the Open-Meteo blend achieves
-about 0.8 to 1.0 C. Ensemble spread-to-RMSE is about 0.46 to 0.51, so the raw
-ensemble is under-dispersed by roughly a factor of two, as expected for a
-single 0.25 degree model over a narrow gulf. EMOS improves CRPS over the raw
-ensemble by about 15 to 17% (CRPSS +0.15 to +0.17) at forecast days 1 to 3 and
-tightens the PIT outer-decile mass toward nominal, but with only one scorable
-year so far the block-bootstrap intervals are not yet informative. May is
-data-thin and its EMOS cells are pooled to the neighbouring months and then to
-a lead-only fit; those cells are flagged in `data/gefs_emos.json`.
+The raw ensemble is under-dispersed by a factor of two to three
+(spread-to-RMSE 0.36 to 0.43; the raw-ensemble outer-rank mass is 0.67 to 0.71
+against a flat-calibration target of 0.50). EMOS corrects most of this
+(PIT outer-decile mass 0.25 to 0.29 against a flat target of 0.20) and improves
+CRPS by 30 to 33% (CRPSS +0.30 to +0.33, interval clear of zero at every
+forecast day, e.g. [+0.28, +0.38] at day 1). EMOS mean absolute error (0.98 to
+1.06 C) is close to but still behind the Open-Meteo blend reference. May is
+data-thin and its EMOS cells pool to the neighbouring months and then to a
+lead-only fit (9 cells flagged in `data/gefs_emos.json`).
 
-The reliability study's target is the patched-reanalysis WBGT (its own 1 C
-error, larger on dry-transition days, section 5), so it predicts
-GEFS-versus-reanalysis divergence rather than GEFS-versus-observation. The
-GEFS-times-patched-WBGT overlap is at most 10 years (2010-2019), roughly 7
-scorable once the backfill is complete, so its interval will be wide; until
-then it is not run for a score. It is the multi-year homogeneous study the
-substrate makes possible, with its limits stated.
+**Reliability** (`scripts/gefs_reliability_study.py`): 9 overlap years
+(2011-2019; one fewer than calibration, since the anomaly features need a
+prior year of the same forecast-day/day-of-year cell), 6 scored. Predicting,
+from issue-time GEFS features alone, whether the day's peak-WBGT forecast will
+land in the worst decile of error against the patched-reanalysis target: the
+LightGBM classifier reaches PR-AUC 0.135 (interval [0.099, 0.180]) against a
+climatological base rate of 0.078 and a spread-decile rule at 0.079 - a real
+but modest lift (ROC-AUC 0.672), and not yet an operationally useful alarm: at
+a precision around 0.25 it flags only 4 of 2,754 forecast-days and its
+calibration is poor in the confident bins (predicted 0.59, observed 0.14 in
+the top bin). This predicts GEFS-versus-reanalysis divergence, not
+GEFS-versus-observation (the patched-reanalysis target carries its own ~1 C
+error, worse on dry-transition days, section 5); a real early-warning signal
+for forecast surprise exists here but this classifier is not yet strong
+enough to act on.
+
+**Scheduler.** With the calibrated ensemble driving `scheduler_study.py
+--uncertainty gefs` on its full truth overlap (841 to 843 test days per lead,
+2014-07-18 to 2019-10-03), the stochastic-versus-deterministic and
+worker-time findings from section 8 are confirmed with a real, honestly
+lead-growing ensemble rather than analog-residual scenarios; see section 8 for
+the numbers.
 
 ## 7. Operational gap analysis
 
@@ -507,10 +529,10 @@ realised WBGT, at the 24 hour lead (48 and 72 hour are within rounding):
 | Policy | Peak load | p90 | Heat dose | On-site span h | On-site rest h | Blocks | Unmet |
 |---|---|---|---|---|---|---|---|
 | Calendar (17/2021 style) | 8.01 | 16.15 | 17.0 | 15.0 | 6.0 | 2.0 | 0% |
-| Earlier-start fixed block | 6.18 | 10.01 | 10.1 | 12.5 | 5.5 | 1.7 | 48% |
+| Earlier-start fixed block | 6.16 | 10.01 | 10.1 | 12.4 | 5.4 | 1.7 | 49% |
 | Reactive (coolest safe first) | 8.18 | 16.96 | 17.1 | 15.0 | 6.0 | 2.1 | 0% |
-| Optimiser (span-capped) | 11.90 | 20.86 | 25.7 | 10.9 | 1.9 | 1.0 | 0% |
-| Clairvoyant (oracle, span-capped) | 11.09 | 20.01 | 25.2 | 10.9 | 1.9 | 1.0 | 0% |
+| Optimiser (span-capped) | 11.50 | 20.86 | 24.8 | 11.3 | 2.3 | 1.1 | 0% |
+| Clairvoyant (oracle, span-capped) | 10.75 | 20.01 | 24.4 | 11.2 | 2.2 | 1.1 | 0% |
 
 Worker-time guarantee: on all 236 days the optimiser's on-site span, on-site
 rest hours and block count are each at or below the calendar rule's (0
@@ -519,8 +541,8 @@ violations, all three leads).
 **The 14% peak-load reduction does not survive.** It was bought with on-site
 hours: the unbounded optimiser lowered the peak by spreading work over a
 longer day. Held to `work + 2` hours and two blocks, the CVaR optimiser must
-cram full output around the midday peak and runs about 49% *hotter* than the
-calendar rule on mean peak retained load (interval [+3.41, +4.28] at 24 h),
+cram full output around the midday peak and runs about 44% *hotter* than the
+calendar rule on mean peak retained load (interval [+3.02, +3.93] at 24 h),
 with a higher heat dose. The calendar rule's fixed 10:00 to 15:30 break is
 doing real protective work on the hottest days, and no worker-time-respecting
 daily optimiser beats it there. A plain earlier start is the best policy on
@@ -533,20 +555,35 @@ not a free improvement over the enforceable calendar rule. The gains that
 matter are structural (section 12), and the daily layer's job is to be never
 worse for the worker than that rule.
 
+(The earlier-start block itself is capped at the same two-block budget as the
+optimiser: without that cap, a day with two separate hot spells could pause
+for both and open a third block, on rare days breaking the guarantee the
+policy exists to hold. That fixed baseline then ends the day early - a bigger
+shortfall - rather than fragment further. `src/scheduler.py`, `test_scheduler_
+windowed.py::test_policy_earlier_start_never_exceeds_the_block_cap`.)
+
 The stochastic (CVaR) optimiser is 3% worse than the deterministic
 point-forecast optimiser on analog scenarios (interval [-0.25, -0.11]): the
-forecast is accurate enough that hedging over-conservatises. The stochastic
-formulation is expected to be worthwhile only at longer leads with a genuine
-ensemble, under a hard chance constraint on an individual crossing a
-core-temperature limit, or with intraday re-planning.
+forecast is accurate enough that hedging over-conservatises.
 
-`scripts/scheduler_study.py --uncertainty gefs` re-runs the comparison with the
-calibrated GEFS ensemble in place of analog scenarios, to test whether a real
-lead-growing spread changes that conclusion. It is wired and runs on the years
-present, but a paired verdict with a usable interval needs the backfill to
-reach the full 2010-2019 overlap; on the three years available so far it is not
-scored. This is the one part of the report still waiting on the backfill; the
-analog-scenario finding above stands on its own.
+**Confirmed with a real, honestly-spread ensemble.** `scripts/scheduler_study.py
+--uncertainty gefs` re-runs the comparison with the calibrated GEFS v12
+ensemble (section 6) on its full 2010-2019 truth overlap (841 to 843 test days
+per lead, 2014-07-18 to 2019-10-03) in place of analog scenarios. The
+stochastic layer is worse there too, and more clearly so: -0.36 to -0.41
+retained-load units at forecast days 1 to 3, interval clear of zero at every
+lead (e.g. [-0.47, -0.34] at day 1) - a larger effect than the analog result,
+not a smaller one. Genuine lead-growing ensemble spread does not rescue
+hedging; if anything it makes the point-forecast LP look better by comparison.
+The span-capped optimiser is 51 to 54% hotter than the calendar rule on this
+sample (a larger gap than the analog test's 44%, on a different, earlier test
+window where the earlier-start block is not clearly better than calendar
+either - peak 7.9 to 8.0 against calendar's 7.5 to 7.6, the two baselines
+essentially tied on this sample rather than earlier-start winning outright).
+The worker-time guarantee holds with zero violations across all 2,526
+optimiser-days scored. This closes the open question from the GEFS
+integration (section 6): honest ensemble spread changes the size of the
+scheduler finding, not its direction.
 
 ## 9. Individual heat-strain estimation (proof of concept)
 
@@ -797,8 +834,13 @@ step against capsule temperature.
    in peak season is a real limit of that policy, not an artefact.
 6. Wet-bulb via Stull (2011) has about 0.3 C RMS error, up to about 1 C bias
    near 42 C, which partly cancels in same-method differences.
-7. The GEFS reliability study is limited by about 10 overlap years and by using
-   the patched reanalysis as its target (section 6.4).
+7. The GEFS reliability and calibration studies are capped at the 10-year
+   (calibration) or 9-year (reliability) GEFS x patched-WBGT overlap - GEFS
+   only exists back to 2000 and the WBGT truth series only forward from 2010,
+   so more of the 2000-2019 reforecast years does not add scorable years -
+   and by using the patched reanalysis as their target (section 6.4). The
+   reliability classifier's PR-AUC (0.135 vs a 0.078 base rate) is a real but
+   modest, not yet operational, lift.
 8. ACGIH TLVs are conservative population screening thresholds, not
    individualised medical limits.
 
@@ -808,8 +850,9 @@ step against capsule temperature.
    at least 4 sessions, ingestible-capsule ground truth, a mixed-effects
    Bland-Altman primary endpoint, and sensor-ablation and acclimatisation
    secondary endpoints.
-2. Completing the GEFS 2000-2019 backfill and refreshing the calibration and
-   reliability numbers on the full record.
+2. Strengthening the GEFS reliability classifier (section 6.4) past a modest
+   lift over the spread-decile baseline into an operationally useful alarm,
+   and re-running it once more overlap years accumulate past 2019.
 3. Reconciling the ERA5-vs-Open-Meteo humidity divergence found in section 5.7
    (largest in 2018, 2019, 2025) well enough to state the section 4.1 trend
    magnitude with confidence, ideally against a third humidity source.

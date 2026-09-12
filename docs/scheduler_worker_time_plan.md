@@ -298,20 +298,29 @@ Walk-forward over 236 held-out days, 24 hour lead (48 and 72 within rounding):
 | Policy | Peak load | p90 | Heat dose | On-site span h | On-site rest h | Blocks | Unmet |
 |---|---|---|---|---|---|---|---|
 | Calendar 17/2021 | 8.01 | 16.15 | 17.0 | 15.0 | 6.0 | 2.0 | 0% |
-| Earlier-start fixed block | 6.18 | 10.01 | 10.1 | 12.5 | 5.5 | 1.7 | 48% |
+| Earlier-start fixed block | 6.16 | 10.01 | 10.1 | 12.4 | 5.4 | 1.7 | 49% |
 | Reactive | 8.18 | 16.96 | 17.1 | 15.0 | 6.0 | 2.1 | 0% |
-| Optimiser (span-capped) | 11.90 | 20.86 | 25.7 | 10.9 | 1.9 | 1.0 | 0% |
-| Clairvoyant (span-capped) | 11.09 | 20.01 | 25.2 | 10.9 | 1.9 | 1.0 | 0% |
+| Optimiser (span-capped) | 11.50 | 20.86 | 24.8 | 11.3 | 2.3 | 1.1 | 0% |
+| Clairvoyant (span-capped) | 10.75 | 20.01 | 24.4 | 11.2 | 2.2 | 1.1 | 0% |
 
 Guarantee: 0 / 236 days where the optimiser's on-site span, on-site rest hours
-or block count exceeds the calendar rule's, all three leads.
+or block count exceeds the calendar rule's, all three leads. (The
+earlier-start reference itself is capped at the same two-block budget as the
+optimiser - without that cap a day with two separate hot spells could open a
+third block, which on the GEFS-ensemble re-run of this same study, a larger
+2,526-day sample, did happen on a handful of days before the cap was added.)
 
-Headline: the optimiser is about 49% *hotter* than the calendar rule on mean
-peak load (interval [+3.41, +4.28] at 24 h) and about 93% hotter than the
+Headline: the optimiser is about 44% *hotter* than the calendar rule on mean
+peak load (interval [+3.02, +3.93] at 24 h) and about 87% hotter than the
 earlier-start block. The 14% peak-load reduction reported before was bought
 with on-site hours and does not survive the span cap. The earlier-start block
 is the best on heat and no worse on worker time, but under-delivers work on
-~48% of peak-season days.
+~49% of peak-season days. Confirmed with a real, honestly-spread ensemble
+(GEFS, `--uncertainty gefs`, full 2010-2019 truth overlap): stochastic hedging
+is worse there too, more clearly than with analog scenarios, and the
+optimiser runs 51 to 54% hotter than calendar on that sample - the finding
+holds, and the size of the gap is at least as large with real forecast
+uncertainty as with the analog approximation.
 
 **Solution hierarchy.** The safety gains that hold up are structural: which
 hours are workable at all, acclimatisation state, shade and hydration, and an

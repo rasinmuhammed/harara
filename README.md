@@ -186,14 +186,13 @@ backfill is a multi-hour job and is off by default. Set `GEFS_BACKFILL=1` or run
 
 ## Status
 
-The hazard analysis, the scheduler, the AI weather model study, and the
+The hazard analysis, the scheduler, the AI weather model study, the GEFS
+ensemble calibration and reliability study, the ERA5 cross-check, and the
 language layer are done. The individual heat-strain filter has been checked
 against external physiology data (PROSPIE) and needs a field pilot with
 ingestible-capsule ground truth in the target population before it means
 anything operationally; the protocol is in
-[`docs/digital_twin_protocol.md`](docs/digital_twin_protocol.md). The GEFS
-backfill and ensemble calibration are still running; those results fill in as
-years land.
+[`docs/digital_twin_protocol.md`](docs/digital_twin_protocol.md).
 
 ---
 
