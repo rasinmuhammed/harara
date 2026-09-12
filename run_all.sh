@@ -50,6 +50,7 @@ fi
 
 # ---------------------------------------------------------------- 2. WBGT + patch
 run scripts/patch_wind.py
+run scripts/patch_humidity.py
 run scripts/run_first_result.py --data data/doha_weather_16yr_patched.csv
 
 # ---------------------------------------------------------------- 3. studies

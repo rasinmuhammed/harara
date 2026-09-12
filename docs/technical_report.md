@@ -91,9 +91,18 @@ studies.
 
 ### 4.1 Climatology
 
-On the 16-year record, WBGT exceeds 32.1 C on 58 to 61% of hours in the
-regulated summer working window. Exceedance hours per year trend upward, from
-about 500 in 2013 to 2014 to about 650 to 770 in 2021 to 2026.
+On the 16-year record, WBGT exceeds 32.1 C on about 61% of hours in the
+regulated summer working window (June to September, 10:00 to 15:00 local).
+Exceedance hours per year (June to September, 06:00 to 18:00 local) trend
+upward, from about 519 in 2013 to 2014 to about 761 in 2021 to 2025, a fitted
+slope of +9.0 hours/year.
+
+These are the corrected figures (section 5.8): Open-Meteo's own archive
+carried a persistent summer humidity drift, confirmed against ERA5 and the
+METAR station, that understated this trend on the previously reported record
+(then about 58% of hours, and a rise from about 500 to 650-770). The shape of
+the finding is unchanged - the ban leaves a gap and the hazard is worsening -
+but the corrected numbers, not the original ones, are the ones to cite.
 
 ### 4.2 A wind-data defect
 
@@ -384,37 +393,39 @@ relative humidity rather than wind.
 dataset was built for this check only (temperature and dewpoint replaced by
 measured METAR values wherever available -- 104,632 of 146,064 hours, 72% --
 recombined thermodynamically consistently, then WBGT recomputed through the
-identical Liljegren pipeline; this mirrors `patch_wind.py`'s method but is
-not applied to any production file, see below). The section 4.1 trend on
-this corrected series sits between the working dataset and ERA5, closer to
-ERA5:
+identical Liljegren pipeline, for this sizing check only). The section 4.1
+trend on this corrected series sat between the pre-correction working
+dataset and ERA5, closer to ERA5:
 
 | Series | 2013-2014 mean h/yr | 2021-2025 mean h/yr | Slope h/yr | Regulated-window exceedance |
 |---|---|---|---|---|
-| Open-Meteo (production) | 521 | 647 | -2.3 | 57.7% |
-| METAR-humidity-corrected | 508 | 739 | **+7.4** | 60.2% |
+| Open-Meteo (pre-correction) | 521 | 647 | -2.3 | 57.7% |
+| METAR-humidity-corrected (sizing check) | 508 | 739 | +7.4 | 60.2% |
 | ERA5 | 466 | 793 | +15.3 | 65.4% |
 
-Correcting only the humidity input, with measured data, turns a flat-to-
+Correcting only the humidity input, with measured data, turned a flat-to-
 declining trend into a clearly rising one, about half of ERA5's estimate.
-Both independent corrections (ERA5, METAR) move the same direction, away from
-the production series. The section 4.1 headline ("about 500 in 2013-2014 to
-about 650-770 in 2021-2026") understates both the level and the slope of the
-true trend: the working dataset's own multi-year drift in its humidity input
-has been quietly pulling the hazard estimate down for roughly the back half
-of the study period, working against the very trend that section 4.1
-reports.
+Both independent corrections (ERA5, METAR) moved the same direction, away
+from the pre-correction series.
 
-**This is not applied to `data/doha_wbgt_16yr.csv` in this report.** That
-file is the input to nearly every quantitative result in sections 4 through
-9 -- climatology, forecast-skill scoring, the operational gap analysis, the
-scheduler walk-forward, the GEFS calibration target. Repatching it the way
-`patch_wind.py` already repatches wind is the correct fix and is now well
-evidenced, but it is a full-report-refresh exercise, not a side effect of a
-cross-check, and belongs as its own scoped piece of work (`docs/results_
-ledger.md` row 35, section 13 further work). Until then, every hazard and
-trend figure elsewhere in this report should be read as a probable
-under-estimate, not an over-estimate, of the true rate of increase.
+**Applied.** `scripts/patch_humidity.py` extends `patch_wind.py`'s method to
+temperature and dewpoint (patched together, from METAR wherever available,
+71.7% of the 16-year record; no date cutover, the same "prefer the
+measurement" principle as the wind patch, since the drift is gradual and
+seasonal rather than a single step). `data/doha_wbgt_16yr.csv` was rebuilt
+from the corrected `data/doha_weather_16yr_patched.csv`, and every figure in
+this report from here on is computed on the corrected record. The applied
+correction is close to the sizing estimate above and slightly stronger: 2,013
+to 2,014 mean 519 h/yr, 2021 to 2025 mean 761 h/yr, slope **+9.0 hours/year**
+(59% of ERA5's independent estimate), regulated-window exceedance 61.4%.
+Re-running the ERA5 cross-check (section 5.7) against the corrected record
+confirms the fix: the WBGT bias against ERA5 falls from +0.38 C to +0.22 C
+and the trend gap that motivated this section closes by more than half
+(-2.3 to +9.0 hours/year, against ERA5's unchanged +15.3), while the
+hour-by-hour agreement on the 32.1 C line is unchanged (97.1%, previously
+97.3%) -- the correction fixed the trend and the bias without disturbing the
+strong day-to-day agreement that was already there. The section 4.1 headline
+now cites these corrected figures directly.
 
 ## 6. GEFS v12 reforecast integration
 
@@ -490,47 +501,51 @@ with a block-bootstrap interval against a spread-decile rule and the base rate.
 ### 6.4 Results, full 2010-2019 truth overlap
 
 The GEFS x patched-WBGT overlap is 10 years (2010-2019); walk-forward scores
-the 7 years from 2013 (>= 3 training years required). Ensemble-mean WBGT RMSE
-is 1.63, 1.66 and 1.70 C at forecast days 1, 2 and 3; EMOS calibration
-(nonhomogeneous Gaussian regression, per lead and month) brings that to 1.27,
-1.32 and 1.37 C. For reference (non-paired, the archives do not overlap in
-time) the Open-Meteo blend achieves 0.80 to 1.00 C at the same leads - the raw
-GEFS point forecast is not competitive with the operational blend at this
-single coastal point, which is expected: GEFS v12 is a frozen 2000-vintage
-0.25 degree model, not a modern data-assimilating system.
+the 7 years from 2013 (>= 3 training years required), on the humidity-
+corrected truth series (section 5.8). Ensemble-mean WBGT RMSE is 1.68, 1.74
+and 1.77 C at forecast days 1, 2 and 3; EMOS calibration (nonhomogeneous
+Gaussian regression, per lead and month) brings that to 1.29, 1.36 and 1.41
+C. For reference (non-paired, the archives do not overlap in time) the
+Open-Meteo blend achieves 0.80 to 1.00 C at the same leads - the raw GEFS
+point forecast is not competitive with the operational blend at this single
+coastal point, which is expected: GEFS v12 is a frozen 2000-vintage 0.25
+degree model, not a modern data-assimilating system.
 
 The raw ensemble is under-dispersed by a factor of two to three
-(spread-to-RMSE 0.36 to 0.43; the raw-ensemble outer-rank mass is 0.67 to 0.71
-against a flat-calibration target of 0.50). EMOS corrects most of this
-(PIT outer-decile mass 0.25 to 0.29 against a flat target of 0.20) and improves
-CRPS by 30 to 33% (CRPSS +0.30 to +0.33, interval clear of zero at every
-forecast day, e.g. [+0.28, +0.38] at day 1). EMOS mean absolute error (0.98 to
-1.06 C) is close to but still behind the Open-Meteo blend reference. May is
-data-thin and its EMOS cells pool to the neighbouring months and then to a
-lead-only fit (9 cells flagged in `data/gefs_emos.json`).
+(spread-to-RMSE 0.35 to 0.42; the raw-ensemble outer-rank mass is 0.69 to
+0.74 against a flat-calibration target of 0.50). EMOS corrects most of this
+(PIT outer-decile mass 0.25 to 0.27 against a flat target of 0.20) and
+improves CRPS by 32 to 36% (CRPSS +0.32 to +0.36, interval clear of zero at
+every forecast day, e.g. [+0.32, +0.41] at day 1) - slightly better than the
+pre-correction figure (+0.30 to +0.33), since the corrected target carries
+more genuine variability for EMOS to explain. EMOS mean absolute error (0.98
+to 1.09 C) is close to but still behind the Open-Meteo blend reference. May
+is data-thin and its EMOS cells pool to the neighbouring months and then to
+a lead-only fit (9 cells flagged in `data/gefs_emos.json`).
 
 **Reliability** (`scripts/gefs_reliability_study.py`): 9 overlap years
 (2011-2019; one fewer than calibration, since the anomaly features need a
 prior year of the same forecast-day/day-of-year cell), 6 scored. Predicting,
-from issue-time GEFS features alone, whether the day's peak-WBGT forecast will
-land in the worst decile of error against the patched-reanalysis target: the
-LightGBM classifier reaches PR-AUC 0.135 (interval [0.099, 0.180]) against a
-climatological base rate of 0.078 and a spread-decile rule at 0.079 - a real
-but modest lift (ROC-AUC 0.672), and not yet an operationally useful alarm: at
-a precision around 0.25 it flags only 4 of 2,754 forecast-days and its
-calibration is poor in the confident bins (predicted 0.59, observed 0.14 in
-the top bin). This predicts GEFS-versus-reanalysis divergence, not
-GEFS-versus-observation (the patched-reanalysis target carries its own ~1 C
-error, worse on dry-transition days, section 5); a real early-warning signal
-for forecast surprise exists here but this classifier is not yet strong
-enough to act on.
+from issue-time GEFS features alone, whether the day's peak-WBGT forecast
+will land in the worst decile of error against the corrected patched-
+reanalysis target: the LightGBM classifier reaches PR-AUC 0.193 (interval
+[0.151, 0.245]) against a climatological base rate of 0.111 and a
+spread-decile rule at 0.115 (ROC-AUC 0.662) - a real, and on the corrected
+target somewhat stronger, lift than the pre-correction figure (0.135 vs a
+0.078 base rate), but still not an operationally useful alarm: at a
+precision around 0.25 it flags 52 of 2,754 forecast-days (recall 0.04) and
+its calibration is poor in the confident bins (predicted 0.60, observed 0.22
+in the top bin). This predicts GEFS-versus-reanalysis divergence, not
+GEFS-versus-observation (the target carries its own error, section 5.8); a
+real early-warning signal for forecast surprise exists here but this
+classifier is not yet strong enough to act on.
 
 **Scheduler.** With the calibrated ensemble driving `scheduler_study.py
 --uncertainty gefs` on its full truth overlap (841 to 843 test days per lead,
-2014-07-18 to 2019-10-03), the stochastic-versus-deterministic and
-worker-time findings from section 8 are confirmed with a real, honestly
-lead-growing ensemble rather than analog-residual scenarios; see section 8 for
-the numbers.
+2014-07-18 to 2019-10-03) against the corrected truth series, see section 8
+for the current worker-time and stochastic-versus-deterministic numbers, and
+the results ledger (row 12d) for whether the "confirmed and sharpened"
+verdict survives now that the analog-scenario result itself has weakened.
 
 ## 7. Operational gap analysis
 
@@ -539,15 +554,20 @@ screening criteria (`src/heat_stress.py`) to the 16-year patched WBGT record,
 over daylight outdoor hours in April to October.
 
 - The calendar ban covers 25% of those hours.
-- Share of daylight hours requiring a full stop: light/acclimatised 20%,
-  moderate/acclimatised 38%, heavy/acclimatised 49%, moderate/unacclimatised
-  59%, heavy/unacclimatised 68%.
-- Unsafe hours outside the ban window: heavy/acclimatised 656 per year (35% of
-  hours outside the ban), heavy/unacclimatised 1085 per year (57%). Overall,
-  63% of the unsafe daylight hours for heavy unacclimatised work occur outside
+- Share of daylight hours requiring a full stop: light/acclimatised 23%,
+  moderate/acclimatised 39%, heavy/acclimatised 50%, moderate/unacclimatised
+  60%, heavy/unacclimatised 68%.
+- Unsafe hours outside the ban window: heavy/acclimatised 685 per year (36% of
+  hours outside the ban), heavy/unacclimatised 1099 per year (58%). Overall,
+  64% of the unsafe daylight hours for heavy unacclimatised work occur outside
   the ban, in mornings, evenings and the shoulder months.
 - Hours the ban closes that are in fact safe for continuous light acclimatised
-  work: 6%; for anything heavier, close to 0%.
+  work: 7%; for anything heavier, close to 0%.
+
+(Recomputed on the humidity-corrected record, section 5.8; this finding barely
+moves - the calendar-ban coverage gap is a shape-of-the-day result, not a
+level one, so it is not sensitive to the archive's summer humidity drift the
+way the section 4.1 trend was.)
 
 The dry-advection regime is a second limitation of the index itself: on those
 52 days per year, air temperature reaches 40 C while WBGT reads lower, so
@@ -590,11 +610,11 @@ realised WBGT, at the 24 hour lead (48 and 72 hour are within rounding):
 
 | Policy | Peak load | p90 | Heat dose | On-site span h | On-site rest h | Blocks | Unmet |
 |---|---|---|---|---|---|---|---|
-| Calendar (17/2021 style) | 8.01 | 16.15 | 17.0 | 15.0 | 6.0 | 2.0 | 0% |
-| Earlier-start fixed block | 6.16 | 10.01 | 10.1 | 12.4 | 5.4 | 1.7 | 49% |
-| Reactive (coolest safe first) | 8.18 | 16.96 | 17.1 | 15.0 | 6.0 | 2.1 | 0% |
-| Optimiser (span-capped) | 11.50 | 20.86 | 24.8 | 11.3 | 2.3 | 1.1 | 0% |
-| Clairvoyant (oracle, span-capped) | 10.75 | 20.01 | 24.4 | 11.2 | 2.2 | 1.1 | 0% |
+| Calendar (17/2021 style) | 8.67 | 16.29 | 18.5 | 15.0 | 6.0 | 2.0 | 0% |
+| Earlier-start fixed block | 6.33 | 10.05 | 10.5 | 12.4 | 5.4 | 1.7 | 49% |
+| Reactive (coolest safe first) | 8.86 | 17.86 | 18.6 | 15.0 | 6.0 | 2.1 | 0% |
+| Optimiser (span-capped) | 11.36 | 21.01 | 24.8 | 11.3 | 2.3 | 1.1 | 0% |
+| Clairvoyant (oracle, span-capped) | 10.50 | 19.34 | 24.0 | 11.1 | 2.1 | 1.1 | 0% |
 
 Worker-time guarantee: on all 236 days the optimiser's on-site span, on-site
 rest hours and block count are each at or below the calendar rule's (0
@@ -603,14 +623,19 @@ violations, all three leads).
 **The 14% peak-load reduction does not survive.** It was bought with on-site
 hours: the unbounded optimiser lowered the peak by spreading work over a
 longer day. Held to `work + 2` hours and two blocks, the CVaR optimiser must
-cram full output around the midday peak and runs about 44% *hotter* than the
-calendar rule on mean peak retained load (interval [+3.02, +3.93] at 24 h),
-with a higher heat dose. The calendar rule's fixed 10:00 to 15:30 break is
-doing real protective work on the hottest days, and no worker-time-respecting
-daily optimiser beats it there. A plain earlier start is the best policy on
-heat (peak 6.2 against 8.0, p90 10.0 against 16.2, dose 10 against 17) and no
-worse on worker time, but on about half of peak-season days it cannot deliver
-all 9 work-hours without working over 32.1 C, so it trades output for safety
+cram full output around the midday peak and runs about 31% *hotter* than the
+calendar rule on mean peak retained load (interval [+2.30, +3.06] at 24 h),
+with a higher heat dose. That gap is smaller than an earlier pass on this
+same study found (about 44%) - the humidity correction (section 5.8) raises
+the calendar rule's own peak too (8.67 against the pre-correction 8.01), so
+part of the earlier gap was the calendar policy looking better than it truly
+is, not the optimiser looking worse. The direction is unchanged: the
+calendar rule's fixed 10:00 to 15:30 break is doing real protective work on
+the hottest days, and no worker-time-respecting daily optimiser beats it
+there. A plain earlier start is the best policy on heat (peak 6.3 against
+8.7, p90 10.1 against 16.3, dose 10.5 against 18.5) and no worse on worker
+time, but on about half of peak-season days it cannot deliver all 9
+work-hours without working over 32.1 C, so it trades output for safety
 rather than giving both. The honest conclusion: once worker time, day
 fragmentation and heat dose are constrained, the daily scheduling layer is
 not a free improvement over the enforceable calendar rule. The gains that
@@ -624,28 +649,40 @@ policy exists to hold. That fixed baseline then ends the day early - a bigger
 shortfall - rather than fragment further. `src/scheduler.py`, `test_scheduler_
 windowed.py::test_policy_earlier_start_never_exceeds_the_block_cap`.)
 
-The stochastic (CVaR) optimiser is 3% worse than the deterministic
-point-forecast optimiser on analog scenarios (interval [-0.25, -0.11]): the
-forecast is accurate enough that hedging over-conservatises.
+On the pre-correction record, the stochastic (CVaR) optimiser was 3% worse
+than the deterministic point-forecast optimiser on analog scenarios (interval
+[-0.25, -0.11]). On the corrected record this weakens substantially: -1% at
+forecast days 1 and 3 (intervals [-0.15, +0.02] and [-0.14, +0.02], both now
+crossing zero) and a narrow, only just significant -1% at day 2 ([-0.19,
+-0.01]). The corrected humidity record is itself somewhat harder to hedge
+against profitably than the pre-correction one - reported plainly rather than
+kept at the earlier, more clear-cut number. The direction has not reversed
+(stochastic is still numerically worse or tied at every lead, never better),
+but "hedging is clearly worse" is now closer to "hedging is not shown to
+help, and is not clearly harmful either" at two of the three leads.
 
-**Confirmed with a real, honestly-spread ensemble.** `scripts/scheduler_study.py
---uncertainty gefs` re-runs the comparison with the calibrated GEFS v12
-ensemble (section 6) on its full 2010-2019 truth overlap (841 to 843 test days
-per lead, 2014-07-18 to 2019-10-03) in place of analog scenarios. The
-stochastic layer is worse there too, and more clearly so: -0.36 to -0.41
-retained-load units at forecast days 1 to 3, interval clear of zero at every
-lead (e.g. [-0.47, -0.34] at day 1) - a larger effect than the analog result,
-not a smaller one. Genuine lead-growing ensemble spread does not rescue
-hedging; if anything it makes the point-forecast LP look better by comparison.
-The span-capped optimiser is 51 to 54% hotter than the calendar rule on this
-sample (a larger gap than the analog test's 44%, on a different, earlier test
-window where the earlier-start block is not clearly better than calendar
-either - peak 7.9 to 8.0 against calendar's 7.5 to 7.6, the two baselines
-essentially tied on this sample rather than earlier-start winning outright).
-The worker-time guarantee holds with zero violations across all 2,526
-optimiser-days scored. This closes the open question from the GEFS
-integration (section 6): honest ensemble spread changes the size of the
-scheduler finding, not its direction.
+**Checked against a real, honestly-spread ensemble - and this time the two
+samples disagree.** `scripts/scheduler_study.py --uncertainty gefs` re-runs
+the comparison with the calibrated GEFS v12 ensemble (section 6) on its full
+2010-2019 truth overlap (841 to 843 test days per lead, 2014-07-18 to
+2019-10-03) against the corrected truth series. Here the stochastic-versus-
+deterministic finding does NOT weaken: -0.39 to -0.41 retained-load units at
+forecast days 1 to 3, interval clear of zero at every lead ([-0.48, -0.33] at
+day 1), essentially unchanged from the pre-correction result (-0.36 to
+-0.41). The span-capped optimiser runs 47 to 48% hotter than the calendar
+rule on this sample (down from 51 to 54% pre-correction, a smaller shift than
+the analog test's), and earlier-start and calendar remain essentially tied
+(7.8 to 7.9 against 8.0). The worker-time guarantee again holds with zero
+violations across all 2,526 optimiser-days.
+
+So the humidity correction moved the analog-scenario hedging result toward
+"not significant" but left the GEFS-ensemble hedging result clearly
+significant, on two different test windows (2025-2026 for the analog study,
+2014-2019 for GEFS, the only years the reforecast truth overlap allows).
+Read together rather than picking one: hedging is not reliably helpful, and
+whether it is reliably harmful now depends on which years and which
+uncertainty source are used to test it - a real, now-documented sensitivity
+that a single-sample answer would have hidden.
 
 ## 9. Individual heat-strain estimation (proof of concept)
 
@@ -874,13 +911,15 @@ step against capsule temperature.
 
 1. Ground truth is a single station (OTHH) in one metro area; spatial
    generality is untested.
-2. The gridded product under test is the Open-Meteo blend, and it carries a
+2. The gridded product under test is the Open-Meteo blend, and it carried a
    second archive defect beyond the November 2024 wind issue: a persistent
    summer humidity drift from 2018 onward, confirmed against both ERA5 and
-   METAR (section 5.8). It is sized (a METAR correction turns the reported
-   flat trend into +7.4 hours/year) but not yet applied to
-   `data/doha_wbgt_16yr.csv`, so every hazard and trend figure in sections 4
-   through 9 should be read as a probable under-estimate until it is.
+   METAR (section 5.8). This one is applied: `data/doha_wbgt_16yr.csv` was
+   rebuilt on the corrected record and every figure in this report is
+   computed on it. The 71.7% of hours with a measured METAR value are as good
+   as the wind-patched record already was; the remaining 28.3% (mostly
+   pre-2014, before the METAR record starts) still carry Open-Meteo's
+   humidity as-is, uncorrected.
 3. The physiology in section 9 is synthetic, from a two-node rational model
    that runs core temperature up somewhat fast in strongly uncompensable heat
    and is not calibrated to field data; the error and calibration numbers are
@@ -916,13 +955,15 @@ step against capsule temperature.
 2. Strengthening the GEFS reliability classifier (section 6.4) past a modest
    lift over the spread-decile baseline into an operationally useful alarm,
    and re-running it once more overlap years accumulate past 2019.
-3. The highest-priority open item: extend `patch_wind.py`'s method to
-   humidity (`patch_humidity.py`, patching temperature and dewpoint from
-   METAR from 2017 onward, the same measured-data-wherever-available
-   principle already applied to wind), rebuild `data/doha_wbgt_16yr.csv`,
-   and refresh every hazard, trend and skill number in sections 4 through 9
-   against the corrected record. Section 5.8 sizes the effect but does not
-   apply it.
+3. The humidity correction (section 5.8) is applied and sections 4, 6, 7 and 8
+   are re-verified against it. Sections 5.1 to 5.4 and 5.6 (forecast bias,
+   spatial downscaling, the dry-advection regime, skill on extreme days, and
+   the AI-weather-model study) still report figures computed before the
+   correction; they are comparative or skill-based findings less likely to
+   reverse from a roughly 0.2 to 0.3 C level shift in the truth series than
+   the level-and-trend claims in section 4 were, but they have not yet been
+   re-run and should be treated as pending re-verification, not confirmed
+   twice.
 4. Instrumented sites for block-scale microclimate, which sections 5.2 and 5.4
    show public products cannot provide.
 
