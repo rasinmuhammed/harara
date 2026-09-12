@@ -1,7 +1,7 @@
 import { Reveal } from "./Reveal";
 
 const REPORT = "https://github.com/rasinmuhammed/harara/blob/main/docs/technical_report.md";
-const EXPLAINER = "https://github.com/rasinmuhammed/harara/blob/main/docs/PROJECT_EXPLAINER.md";
+const LEDGER = "https://github.com/rasinmuhammed/harara/blob/main/docs/results_ledger.md";
 
 const POINTS = [
   [
@@ -58,11 +58,11 @@ export function Method() {
             <a className="underline hover:text-ink" href={REPORT} target="_blank" rel="noreferrer">
               technical report
             </a>{" "}
-            has the full method. The{" "}
-            <a className="underline hover:text-ink" href={EXPLAINER} target="_blank" rel="noreferrer">
-              project explainer
+            has the full method, and the{" "}
+            <a className="underline hover:text-ink" href={LEDGER} target="_blank" rel="noreferrer">
+              results ledger
             </a>{" "}
-            is the plain-language walkthrough.
+            has every question tested, including the rejected ones.
           </p>
         </Reveal>
       </div>
