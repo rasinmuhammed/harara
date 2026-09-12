@@ -52,6 +52,7 @@ Three rules the project holds to:
 | How much additional protection can a forecast-driven plan add on top of the fixed window? | Less than an earlier version of this project claimed. A risk-optimal scheduler appeared to cut mean peak heat load by about 14 percent, but only by keeping the crew on site across a longer day. Once time on site, day fragmentation and heat dose are held no worse than the calendar rule, the daily optimiser no longer beats it on peak load; a plain earlier start is better on heat but leaves work undelivered on about half of peak-season days. This is a simulation on real past weather. |
 | Can a physics filter estimate a worker's core temperature better than a heart-rate monitor alone? | On the PROSPIE dataset (40 subjects, rectal-probe reference), adding a skin-temperature channel to a two-node thermoregulation filter cut RMSE by 21 percent against a heart-rate-only baseline. Two caveats: the earlier synthetic figure (0.083 °C MAE) does not transfer, and the filter's stated uncertainty is not yet calibrated. The subjects are lab treadmill walkers, not outdoor workers. |
 | Do AI weather models miss Gulf heat extremes more than conventional forecasting? | No. On identical hours, ECMWF IFS and AIFS miss 6 to 15 percent of true stop-work exceedances; NOAA GFS misses about 40 percent at every lead, and gets worse before heat waves. The practical takeaway is to use ECMWF-family forecasts for Gulf heat-safety decisions. |
+| Is the rising-heat trend this project reports actually real, or an artefact of one weather archive? | The trend is real and understated, not overstated. Cross-checking the working dataset against a second reanalysis (ERA5) and the measured station (METAR) found a second, previously undocumented archive defect: Open-Meteo's Doha humidity drifted dry from 2018 onward. Correcting it with measured data turns a reported flat trend into a clearly rising one. Not yet applied to the production record; see the technical report section 5.8. |
 
 ---
 
@@ -129,7 +130,7 @@ and 31.
 
 | Dataset | Coverage | Notes |
 |---|---|---|
-| Open-Meteo historical archive (ERA5 blend) | 2010 to 2026 hourly, Doha grid cell | 10 m wind from Nov 2024 is patched from METAR to correct a known archive defect. |
+| Open-Meteo historical archive (ERA5 blend) | 2010 to 2026 hourly, Doha grid cell | Two known archive defects: 10 m wind from Nov 2024 (patched from METAR) and a summer humidity drift from 2018 onward (sized against METAR and ERA5, not yet patched; technical report section 5.8). |
 | Hamad International Airport (OTHH) METAR, via Iowa Environmental Mesonet | 2014 to 2026 hourly | Station reference. |
 | Open-Meteo historical forecast archive | 2022 to 2026, leads 24, 48, 72 h | Archived forecasts for scoring against what happened. |
 | NOAA GEFS v12 reforecast (`noaa-gefs-retrospective` on S3) | 2000 to 2019, 5 members, May to Sep | Frozen-model ensemble for probabilistic calibration. |

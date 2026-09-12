@@ -39,6 +39,13 @@ const FINDINGS: { claim: string; result: string; href: string; cite: string }[] 
     href: `${REPORT}#91-external-validation-on-real-physiology`,
     cite: "Technical report, section 9.1",
   },
+  {
+    claim: "The rising-heat trend was understated, not overstated, by our own weather archive.",
+    result:
+      "Cross-checking the working forecast archive against a second reanalysis and the measured airport station found a second, previously undocumented defect: its Doha humidity quietly drifted dry from 2018 onward. Correcting it with measured data turns a reported flat trend into a clearly rising one, confirmed by both independent sources. We are publishing the defect we found in our own primary dataset, not just the ones we found in others'.",
+    href: `${REPORT}#58-a-second-archive-defect-a-persistent-humidity-drift-and-its-size`,
+    cite: "Technical report, section 5.8",
+  },
 ];
 
 export function Findings() {
@@ -48,7 +55,7 @@ export function Findings() {
         <Reveal>
           <p className="eyebrow">What the data shows</p>
           <h2 id="findings-h" className="mt-2 max-w-prose text-h2 text-ink">
-            Five findings, negative ones included.
+            Six findings, including one about our own instruments.
           </h2>
           <p className="mt-3 max-w-prose text-lg text-ink-secondary">
             Qatar&apos;s Ministerial Decision 17/2021 is the enforceable baseline every

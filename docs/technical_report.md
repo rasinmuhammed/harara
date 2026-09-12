@@ -36,9 +36,14 @@ for a heart-rate-only Kalman filter; this has not been validated against
 measured core temperature. A cross-check against ERA5, a second reanalysis
 independent of the working dataset, strongly corroborates its WBGT climatology
 overall (r = 0.99, 97% agreement on stop-work hours) and independently
-confirms the wind-archive defect, but does not confirm the size of the
-reported upward exceedance-hour trend, which turns out to be sensitive to a
-humidity divergence concentrated in specific years (section 5.7).
+confirms the wind-archive defect, but disagrees on the size of the reported
+upward exceedance-hour trend (section 5.7). Triangulating against the METAR
+station resolves this in ERA5's direction: Open-Meteo's Doha archive carries
+a second, previously undocumented defect, a nine-year drift toward drier
+humidity from 2018 onward, and correcting it with measured data turns the
+reported near-flat trend into a clearly rising one -- the true rate of
+increase in outdoor-heat exposure is understated, not overstated, by the
+working dataset (section 5.8).
 
 ## 1. Motivation
 
@@ -54,7 +59,7 @@ stop-work clause at WBGT above 32.1 C.
 
 | Source | Coverage | Role | Homogeneity |
 |---|---|---|---|
-| Open-Meteo historical archive (ERA5 / ERA5-Land blend) | 2010-2026, hourly, Doha grid cell | Gridded reanalysis under test; modelling substrate | Homogeneous except 10 m wind (section 4.2) |
+| Open-Meteo historical archive (ERA5 / ERA5-Land blend) | 2010-2026, hourly, Doha grid cell | Gridded reanalysis under test; modelling substrate | Two known defects: 10 m wind from Nov 2024 (section 4.2, patched) and summer humidity drift from 2018 (section 5.8, sized, not yet patched) |
 | OTHH (Hamad International) METAR, via Iowa Environmental Mesonet | 2014-2026, hourly | Station reference; visibility and present-weather codes | Homogeneous; airport site |
 | Open-Meteo historical forecast archive | 2022-2026, leads 24/48/72 h | Archived NWP forecasts for bias-correction and skill studies | Temperature only before 2024; RH and wind from 2024 (section 6) |
 | NOAA GEFS v12 reforecast (`noaa-gefs-retrospective` on S3) | 2000-2019, 5 members, May-Sep | Homogeneous frozen-model ensemble | Consistent file layout across the period; checked |
@@ -341,18 +346,75 @@ Tracing the divergence to its source: the years with the largest gap are
 humid than the working dataset in warm-season daytime hours, with air
 temperature 0.5 to 1.4 C *cooler* -- a humidity-driven gap, the same failure
 mode section 5.6 found for AIFS temperature-vs-WBGT, not a temperature one.
-Section 4.1's trend claim rests on the Open-Meteo-based series and should be
-read with this caveat; it is not overturned (ERA5 shows a rise too, just a
-larger and steadier one), and it is not independently confirmed at the
-magnitude stated.
+This gap is resolved, not just flagged, in section 5.8: it is a second,
+previously undocumented Open-Meteo archive defect, and the true trend is
+larger than the working dataset reports, not smaller.
 
 **Verdict.** The wind-defect finding (section 4.2) is strengthened: two
 independent sources now confirm it. The overall WBGT climatology is
 strongly corroborated (r = 0.99, agreement on 97% of stop-work hours). The
-section 4.1 upward trend is directionally supported but not confirmed at its
-stated magnitude, and the disagreement is humidity-driven in specific years,
-not evenly spread across the record -- a genuine, now-documented source of
-uncertainty in the 16-year record rather than a settled number.
+section 4.1 upward trend is real and, per section 5.8, understated by the
+working dataset.
+
+### 5.8 A second archive defect: a persistent humidity drift, and its size
+
+Section 5.7 traced the ERA5-versus-working-dataset trend disagreement to a
+humidity gap concentrated in specific years, without saying which product was
+closer to reality -- ERA5 is an independent reanalysis, not ground truth.
+METAR gives a third, measured answer. `scripts/humidity_defect_study.py`
+compares dewpoint (moisture content directly, rather than relative humidity,
+which also moves with temperature and can hide which one is actually wrong)
+against the OTHH station for all three products, June to August, 2014 to
+2026.
+
+**Open-Meteo's summer dewpoint bias against METAR flips sign and stays
+flipped.** Mean bias (product minus station): +1.4 C in 2014-2016 (Open-Meteo
+too moist), crossing to -0.3 C in 2017, then -0.6 to -1.8 C in every year
+from 2018 to 2026 (Open-Meteo too dry) -- nine consecutive years on the dry
+side after three years on the wet side, not noise in a couple of unlucky
+years. ERA5's bias against METAR stays on one side throughout, +0.7 to +2.0 C
+(ERA5 itself runs consistently a little moist against the station, but
+*consistently*, with no sign flip and no trend). This is a second,
+previously undocumented Open-Meteo archive defect, structurally different
+from the November 2024 wind defect (section 4.2): a gradual, seasonal drift
+rather than a sharp step, spanning about nine years rather than two, and in
+relative humidity rather than wind.
+
+**Sizing the effect.** A METAR-humidity-corrected version of the working
+dataset was built for this check only (temperature and dewpoint replaced by
+measured METAR values wherever available -- 104,632 of 146,064 hours, 72% --
+recombined thermodynamically consistently, then WBGT recomputed through the
+identical Liljegren pipeline; this mirrors `patch_wind.py`'s method but is
+not applied to any production file, see below). The section 4.1 trend on
+this corrected series sits between the working dataset and ERA5, closer to
+ERA5:
+
+| Series | 2013-2014 mean h/yr | 2021-2025 mean h/yr | Slope h/yr | Regulated-window exceedance |
+|---|---|---|---|---|
+| Open-Meteo (production) | 521 | 647 | -2.3 | 57.7% |
+| METAR-humidity-corrected | 508 | 739 | **+7.4** | 60.2% |
+| ERA5 | 466 | 793 | +15.3 | 65.4% |
+
+Correcting only the humidity input, with measured data, turns a flat-to-
+declining trend into a clearly rising one, about half of ERA5's estimate.
+Both independent corrections (ERA5, METAR) move the same direction, away from
+the production series. The section 4.1 headline ("about 500 in 2013-2014 to
+about 650-770 in 2021-2026") understates both the level and the slope of the
+true trend: the working dataset's own multi-year drift in its humidity input
+has been quietly pulling the hazard estimate down for roughly the back half
+of the study period, working against the very trend that section 4.1
+reports.
+
+**This is not applied to `data/doha_wbgt_16yr.csv` in this report.** That
+file is the input to nearly every quantitative result in sections 4 through
+9 -- climatology, forecast-skill scoring, the operational gap analysis, the
+scheduler walk-forward, the GEFS calibration target. Repatching it the way
+`patch_wind.py` already repatches wind is the correct fix and is now well
+evidenced, but it is a full-report-refresh exercise, not a side effect of a
+cross-check, and belongs as its own scoped piece of work (`docs/results_
+ledger.md` row 35, section 13 further work). Until then, every hazard and
+trend figure elsewhere in this report should be read as a probable
+under-estimate, not an over-estimate, of the true rate of increase.
 
 ## 6. GEFS v12 reforecast integration
 
@@ -812,12 +874,13 @@ step against capsule temperature.
 
 1. Ground truth is a single station (OTHH) in one metro area; spatial
    generality is untested.
-2. The gridded product under test is the Open-Meteo blend. Section 5.7 cross-
-   checks it against ERA5: strong overall agreement (r = 0.99, 97% agreement
-   on stop-work hours) and the wind defect is independently confirmed, but the
-   section 4.1 upward exceedance-hour trend is not confirmed at its stated
-   magnitude, and the divergence is humidity-driven in specific years (2018,
-   2019, 2025), not spread evenly across the record.
+2. The gridded product under test is the Open-Meteo blend, and it carries a
+   second archive defect beyond the November 2024 wind issue: a persistent
+   summer humidity drift from 2018 onward, confirmed against both ERA5 and
+   METAR (section 5.8). It is sized (a METAR correction turns the reported
+   flat trend into +7.4 hours/year) but not yet applied to
+   `data/doha_wbgt_16yr.csv`, so every hazard and trend figure in sections 4
+   through 9 should be read as a probable under-estimate until it is.
 3. The physiology in section 9 is synthetic, from a two-node rational model
    that runs core temperature up somewhat fast in strongly uncompensable heat
    and is not calibrated to field data; the error and calibration numbers are
@@ -853,9 +916,13 @@ step against capsule temperature.
 2. Strengthening the GEFS reliability classifier (section 6.4) past a modest
    lift over the spread-decile baseline into an operationally useful alarm,
    and re-running it once more overlap years accumulate past 2019.
-3. Reconciling the ERA5-vs-Open-Meteo humidity divergence found in section 5.7
-   (largest in 2018, 2019, 2025) well enough to state the section 4.1 trend
-   magnitude with confidence, ideally against a third humidity source.
+3. The highest-priority open item: extend `patch_wind.py`'s method to
+   humidity (`patch_humidity.py`, patching temperature and dewpoint from
+   METAR from 2017 onward, the same measured-data-wherever-available
+   principle already applied to wind), rebuild `data/doha_wbgt_16yr.csv`,
+   and refresh every hazard, trend and skill number in sections 4 through 9
+   against the corrected record. Section 5.8 sizes the effect but does not
+   apply it.
 4. Instrumented sites for block-scale microclimate, which sections 5.2 and 5.4
    show public products cannot provide.
 

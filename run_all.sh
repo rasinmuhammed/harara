@@ -57,6 +57,7 @@ run scripts/compare_wind_sources.py
 run scripts/diagnose_wbgt.py
 run_if data/era5 scripts/era5_to_csv.py
 run_if data/doha_era5_hourly.csv scripts/era5_cross_check.py
+run_if data/doha_era5_hourly.csv scripts/humidity_defect_study.py
 run scripts/spatial_representativeness.py
 run scripts/regime_climatology_study.py
 run scripts/extreme_event_skill.py
