@@ -33,7 +33,12 @@ midday break is load-bearing on the hottest days (section 8). A physics-based
 particle filter estimates individual core temperature with 0.08 C MAE on
 synthetic data when a skin-temperature patch is available, compared with 0.36 C
 for a heart-rate-only Kalman filter; this has not been validated against
-measured core temperature.
+measured core temperature. A cross-check against ERA5, a second reanalysis
+independent of the working dataset, strongly corroborates its WBGT climatology
+overall (r = 0.99, 97% agreement on stop-work hours) and independently
+confirms the wind-archive defect, but does not confirm the size of the
+reported upward exceedance-hour trend, which turns out to be sensitive to a
+humidity divergence concentrated in specific years (section 5.7).
 
 ## 1. Motivation
 
@@ -53,7 +58,7 @@ stop-work clause at WBGT above 32.1 C.
 | OTHH (Hamad International) METAR, via Iowa Environmental Mesonet | 2014-2026, hourly | Station reference; visibility and present-weather codes | Homogeneous; airport site |
 | Open-Meteo historical forecast archive | 2022-2026, leads 24/48/72 h | Archived NWP forecasts for bias-correction and skill studies | Temperature only before 2024; RH and wind from 2024 (section 6) |
 | NOAA GEFS v12 reforecast (`noaa-gefs-retrospective` on S3) | 2000-2019, 5 members, May-Sep | Homogeneous frozen-model ensemble | Consistent file layout across the period; checked |
-| ERA5 (Copernicus CDS) | Partial | Intended second reanalysis for cross-checks | Backfill is slow (CDS queue); not required for the current results |
+| ERA5 (Copernicus CDS) | 2010-2026, hourly, same Doha point | Independent second reanalysis; cross-check only (section 5.7) | Complete; not used as modelling substrate for any other section |
 
 Timestamps are UTC; local analysis uses Asia/Qatar (UTC+3, no DST). The cosine
 of the solar zenith angle is computed from timestamp and location using the
@@ -285,6 +290,68 @@ preferred for Gulf humid-heat forecasting. The published cold-bias-before-heat-
 wave result is real in air temperature but does not by itself indicate a humid-
 heat forecasting hazard; humidity compensation has to be accounted for, and the
 metric that matters is WBGT at the decision threshold.
+
+### 5.7 A targeted ERA5 cross-check
+
+The working dataset behind sections 4 to 5.6 is Open-Meteo's archive
+(patched with METAR wind from November 2024, section 4.2). It is a blend,
+not a documented single product, so section 12's limitation 2 asked for an
+independent check: ERA5, a reanalysis from a different provider (Copernicus)
+running a different, frozen model (IFS Cy41r2), fetched hourly for the same
+Doha point (25.27 N, 51.61 E) over the same 2010-2026 span
+(`scripts/fetch_era5.py`, `scripts/era5_to_csv.py`, `scripts/era5_cross_check.py`).
+ERA5 is not ground truth any more than Open-Meteo is; where the two agree is
+real signal, where they disagree is uncertainty this report should own.
+WBGT is computed from ERA5 with the identical Liljegren pipeline and Doha
+grid point as the working dataset, so any difference is in the inputs, not
+the physics -- confirmed by first recomputing WBGT from the patched
+Open-Meteo file with this script's own code and checking it reproduces the
+stored `data/doha_wbgt_16yr.csv` exactly (max difference 0.0 C over 146,064
+hours).
+
+**The November 2024 wind defect, checked against a third source.** Section
+4.2 found Open-Meteo's archive wind running low from November 2024, confirmed
+against METAR. ERA5 is independent of both. Summer (June-August) mean wind,
+2025-2026 against 2014-2024: Open-Meteo -1.56 m/s (-35%), METAR +0.02 m/s
+(+0.5%), **ERA5 -0.00 m/s (-0.0%)**. ERA5 corroborates METAR and contradicts
+Open-Meteo: the defect is confirmed a second, fully independent way. It is in
+Open-Meteo's archive, not the weather.
+
+**Agreement on WBGT, full 16-year hourly overlap (146,064 hours).** ERA5 runs
++0.38 C warm on WBGT relative to the working dataset (95% CI [+0.33, +0.43]),
+RMSE 0.92 C, r = 0.99. On the 32.1 C stop-work line the two agree on 97.3% of
+hours (9,897 both over, 132,280 both under); of the hours ERA5 flags as over
+the line, the working dataset also flags 77.3%; of the hours the working
+dataset flags, ERA5 also flags 90.9%. ERA5 runs mildly more conservative:
+2,899 hours it calls over the line the working dataset does not, against 988
+the other way.
+
+**The rising exceedance-hour trend (section 4.1) does not fully replicate.**
+Using a plain warm-season daytime definition (June-September, 06:00-18:00
+local, WBGT > 32.1 C, for consistency with `api/planning.py`'s
+`heat_trend`), ERA5 shows a clear rise across the full record: 466 hours/year
+(2013-2014 mean) to 793 (2021-2025 mean), a fitted slope of +15.3 hours/year.
+The working dataset over the same years and definition is essentially flat
+(-2.3 hours/year). The two products agree that recent years are hot and
+agree hour-by-hour 97% of the time, but disagree on whether the multi-year
+trend is a real, steady rise or closer to noise around a high plateau.
+Tracing the divergence to its source: the years with the largest gap are
+2018, 2019 and 2025, where ERA5 runs 6.3 to 6.9 percentage points more
+humid than the working dataset in warm-season daytime hours, with air
+temperature 0.5 to 1.4 C *cooler* -- a humidity-driven gap, the same failure
+mode section 5.6 found for AIFS temperature-vs-WBGT, not a temperature one.
+Section 4.1's trend claim rests on the Open-Meteo-based series and should be
+read with this caveat; it is not overturned (ERA5 shows a rise too, just a
+larger and steadier one), and it is not independently confirmed at the
+magnitude stated.
+
+**Verdict.** The wind-defect finding (section 4.2) is strengthened: two
+independent sources now confirm it. The overall WBGT climatology is
+strongly corroborated (r = 0.99, agreement on 97% of stop-work hours). The
+section 4.1 upward trend is directionally supported but not confirmed at its
+stated magnitude, and the disagreement is humidity-driven in specific years,
+not evenly spread across the record -- a genuine, now-documented source of
+uncertainty in the 16-year record rather than a settled number.
 
 ## 6. GEFS v12 reforecast integration
 
@@ -708,8 +775,12 @@ step against capsule temperature.
 
 1. Ground truth is a single station (OTHH) in one metro area; spatial
    generality is untested.
-2. The gridded product under test is the Open-Meteo blend, not ERA5; a targeted
-   ERA5 cross-check is outstanding.
+2. The gridded product under test is the Open-Meteo blend. Section 5.7 cross-
+   checks it against ERA5: strong overall agreement (r = 0.99, 97% agreement
+   on stop-work hours) and the wind defect is independently confirmed, but the
+   section 4.1 upward exceedance-hour trend is not confirmed at its stated
+   magnitude, and the divergence is humidity-driven in specific years (2018,
+   2019, 2025), not spread evenly across the record.
 3. The physiology in section 9 is synthetic, from a two-node rational model
    that runs core temperature up somewhat fast in strongly uncompensable heat
    and is not calibrated to field data; the error and calibration numbers are
@@ -739,7 +810,9 @@ step against capsule temperature.
    secondary endpoints.
 2. Completing the GEFS 2000-2019 backfill and refreshing the calibration and
    reliability numbers on the full record.
-3. A targeted ERA5 cross-check of the section 5 findings.
+3. Reconciling the ERA5-vs-Open-Meteo humidity divergence found in section 5.7
+   (largest in 2018, 2019, 2025) well enough to state the section 4.1 trend
+   magnitude with confidence, ideally against a third humidity source.
 4. Instrumented sites for block-scale microclimate, which sections 5.2 and 5.4
    show public products cannot provide.
 

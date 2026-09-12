@@ -12,8 +12,10 @@
 # It is resumable; the GEFS analysis stages below run on whatever years
 # are present in data/gefs/.
 #
-# Fixed seeds throughout; see docs/technical_report.md. ERA5 is a slow
-# optional background job (report S2).
+# Fixed seeds throughout; see docs/technical_report.md. ERA5 (report S2, S5.7)
+# is fetched separately with scripts/fetch_era5.py (a slow CDS-queue job,
+# not run by this script); once data/era5/ has files, stage 3 below converts
+# and cross-checks it automatically.
 
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -53,6 +55,8 @@ run scripts/run_first_result.py --data data/doha_weather_16yr_patched.csv
 # ---------------------------------------------------------------- 3. studies
 run scripts/compare_wind_sources.py
 run scripts/diagnose_wbgt.py
+run_if data/era5 scripts/era5_to_csv.py
+run_if data/doha_era5_hourly.csv scripts/era5_cross_check.py
 run scripts/spatial_representativeness.py
 run scripts/regime_climatology_study.py
 run scripts/extreme_event_skill.py
