@@ -294,20 +294,41 @@ def _penalised_score_fixed(w, scen, beta, phi, wbgt_ref, p, lambda_tv,
             + lambda_rest * rest), span, rest
 
 
-def policy_earlier_start(wbgt, allowed, w_req, hard_stop=32.1) -> np.ndarray:
+def policy_earlier_start(wbgt, allowed, w_req, hard_stop=32.1,
+                         max_blocks: int = MAX_WORK_BLOCKS) -> np.ndarray:
     """The plain fixed baseline: start at the first allowed hour and work
     forward continuously, pausing only for hours over the 32.1 C hard stop,
-    until `w_req` effective hours are delivered."""
+    until `w_req` effective hours are delivered.
+
+    Never works an hour over the hard stop - that line does not bend. But a
+    WBGT path can have more than one separate hot spell in a day; pausing for
+    each one without limit can fragment this baseline into more blocks than
+    the calendar rule it is compared against. So it is also capped at
+    `max_blocks` work blocks: once that many have been used, a further hot
+    spell ends the day (a larger shortfall) rather than opening a new one.
+    This keeps the baseline itself inside the same worker-time guarantee the
+    windowed optimiser is held to, at the cost of a bigger shortfall on the
+    rare day whose heat pattern needs more blocks than the budget allows.
+    """
     wbgt = np.asarray(wbgt, dtype=float)
     allowed = np.asarray(allowed, dtype=bool)
     H = len(wbgt)
     w = np.zeros(H)
     remaining = float(w_req)
+    blocks = 0
+    working = False
     for h in range(H):
         if remaining <= 1e-9:
             break
-        if not allowed[h] or wbgt[h] > hard_stop:
+        workable = allowed[h] and wbgt[h] <= hard_stop
+        if not workable:
+            working = False
             continue
+        if not working:
+            if blocks >= max_blocks:
+                break                  # a new block would exceed the budget
+            blocks += 1
+            working = True
         take = min(1.0, remaining)
         w[h] = take
         remaining -= take
@@ -347,7 +368,8 @@ def schedule_windowed(
     wbgt_point = np.asarray(wbgt_point, dtype=float)
 
     if w_ref is None:
-        w_ref = policy_earlier_start(wbgt_point, allowed, w_req)
+        w_ref = policy_earlier_start(wbgt_point, allowed, w_req,
+                                     max_blocks=max_work_blocks)
     w_ref = np.asarray(w_ref, dtype=float)
 
     if span_cap_h is None:

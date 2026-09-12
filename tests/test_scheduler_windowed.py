@@ -52,6 +52,22 @@ def test_policy_earlier_start_single_block_and_hard_stop():
     assert all(w2[i] == 0.0 for i in range(H) if hot[i] > 32.1)
 
 
+def test_policy_earlier_start_never_exceeds_the_block_cap():
+    # a WBGT path with two separate hot spells: dodging both needs 3 blocks.
+    # The 32.1 hard stop must still hold on every hour; the day ends early
+    # (a shortfall) rather than opening a third block.
+    allowed = np.ones(H, dtype=bool)
+    wbgt = np.array([28, 28, 28, 28, 28, 28,      # 0-5 workable
+                     34, 34, 34, 34, 34,          # 6-10 hot spell 1
+                     29,                          # 11 workable dip
+                     34,                          # 12 hot spell 2
+                     29, 29])                     # 13-14 workable
+    w = policy_earlier_start(wbgt, allowed, 9.0, max_blocks=2)
+    assert len(_work_blocks(w)) <= 2
+    assert all(w[i] == 0.0 for i in range(H) if wbgt[i] > 32.1)   # hard stop holds
+    assert w.sum() < 9.0                                          # shortfall, not a 3rd block
+
+
 def test_windowed_respects_span_cap_on_a_mild_day():
     # nothing over 32.1, so the window search wins and the span cap bites
     wbgt = hot_day(peak=30.0)

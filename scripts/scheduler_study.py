@@ -258,8 +258,13 @@ def main():
 
 def run_gefs():
     """Scheduler comparison with the calibrated GEFS ensemble, on the
-    GEFS x patched-WBGT overlap. Answers: does stochastic beat
-    deterministic once spread grows honestly with lead?"""
+    GEFS x patched-WBGT overlap (2010-2019; GEFS years before 2010 have no
+    WBGT truth to score against, so the 2000-2009 part of the backfill does
+    not change this study). Same span-capped windowed optimiser and worker-
+    time reporting as the analog study (main()), so the two are comparable;
+    the bare deterministic/stochastic pair is kept only for the hedging-value
+    question: does the CVaR layer beat the point-forecast LP once ensemble
+    spread grows honestly with lead, instead of via analog resampling?"""
     from src.emos import EMOS
 
     emos_path = REPO / "data" / "gefs_emos.json"
@@ -288,6 +293,7 @@ def run_gefs():
           f"({test[0]}..{test[-1]})\n")
     allowed = np.ones(H, dtype=bool)
 
+    table = ["calendar", "earlier_start", "reactive", "optimiser", "clairvoyant"]
     for fday in (1, 2, 3):
         rows = []
         for d in test:
@@ -299,32 +305,65 @@ def run_gefs():
             if scen.shape[0] < 3:
                 continue
             point = scen.mean(0)
+            windo = schedule_windowed(scen, allowed, W_REQ, wbgt_point=point, beta=BETA)
+            clair_r = schedule_windowed(truth[None, :], allowed, W_REQ,
+                                        wbgt_point=truth, beta=BETA)
             pol = {
                 "calendar": policy_calendar(HOURS.astype(float), allowed),
+                "earlier_start": policy_earlier_start(point, allowed, W_REQ),
                 "reactive": policy_reactive(point, allowed, W_REQ),
                 "deterministic": policy_deterministic(point, allowed, W_REQ, beta=BETA),
                 "stochastic": policy_cvar(scen, allowed, W_REQ, beta=BETA),
-                "clairvoyant": policy_clairvoyant(truth, allowed, W_REQ, beta=BETA),
+                "optimiser": windo.w,
+                "clairvoyant": clair_r.w,
             }
-            rows.append({n: realized_strain(wv, truth) for n, wv in pol.items()})
+            row_out = {}
+            for n, wv in pol.items():
+                row_out[f"strain_{n}"] = realized_strain(wv, truth)
+                row_out[f"short_{n}"] = max(0.0, W_REQ - wv.sum())
+                sp, rest, nb = _shape(wv)
+                row_out[f"span_{n}"] = sp
+                row_out[f"rest_{n}"] = rest
+                row_out[f"blocks_{n}"] = nb
+            rows.append(row_out)
         R = pd.DataFrame(rows)
         if R.empty:
             print(f"fday +{fday}: no scorable days"); continue
-        clair = R["clairvoyant"].to_numpy()
+
         print(f"====  forecast day +{fday}  (n={len(R)})  ====")
-        for name in ["calendar", "reactive", "deterministic", "stochastic", "clairvoyant"]:
-            s = R[name].to_numpy()
+        print(f"  {'policy':<14}{'peak':>7}{'  [95% CI]':<16}{'p90':>7}"
+              f"{'span h':>8}{'rest h':>8}{'blocks':>8}{'unmet':>7}")
+        for name in table:
+            s = R[f"strain_{name}"].to_numpy()
             lo, hi = block_ci(s)
-            print(f"  {name:<14}{np.nanmean(s):>8.2f}  [{lo:.2f},{hi:.2f}]"
-                  f"   p90 {np.nanpercentile(s,90):>6.2f}   "
-                  f"regret {np.nanmean(s-clair):+.2f}")
-        d = R["deterministic"] - R["stochastic"]
+            unmet = np.mean(R[f"short_{name}"].to_numpy() > 0.05) * 100
+            print(f"  {name:<14}{np.nanmean(s):>7.2f}"
+                  f"{f'  [{lo:.2f},{hi:.2f}]':<16}"
+                  f"{np.nanpercentile(s, 90):>7.2f}"
+                  f"{R[f'span_{name}'].mean():>8.1f}"
+                  f"{R[f'rest_{name}'].mean():>8.1f}"
+                  f"{R[f'blocks_{name}'].mean():>8.2f}"
+                  f"{unmet:>6.0f}%")
+
+        for base in ["calendar", "earlier_start"]:
+            dpair = R[f"strain_{base}"] - R["strain_optimiser"]
+            lo, hi = block_ci(dpair.to_numpy())
+            print(f"    optimiser vs {base:<13}: mean peak reduction "
+                  f"{dpair.mean():+.2f}  [{lo:+.2f},{hi:+.2f}]")
+
+        d = R["strain_deterministic"] - R["strain_stochastic"]
         lo, hi = block_ci(d.to_numpy())
         verdict = ("stochastic BETTER" if lo > 0 else
                    "no significant difference" if lo <= 0 <= hi else
                    "stochastic WORSE")
-        print(f"  stochastic vs deterministic: {d.mean():+.2f} "
-              f"[{lo:+.2f},{hi:+.2f}]  -> {verdict}\n")
+        print(f"    stochastic vs deterministic (bare LP, honest GEFS spread): "
+              f"{d.mean():+.2f}  [{lo:+.2f},{hi:+.2f}]  -> {verdict}")
+
+        viol = R[(R["span_optimiser"] > R["span_calendar"] + 1e-6)
+                 | (R["rest_optimiser"] > R["rest_calendar"] + 1e-6)
+                 | (R["blocks_optimiser"] > R["blocks_calendar"])]
+        print(f"    worker-time guarantee vs calendar: {len(viol)} / {len(R)} "
+              f"day(s) worse on span, on-site rest or blocks\n")
 
 
 if __name__ == "__main__":
