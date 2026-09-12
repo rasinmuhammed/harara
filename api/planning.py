@@ -341,27 +341,34 @@ def day_curve(lat: float, lon: float, date: dt.date, *,
     return forecast_cache.get_or_set(key, produce)
 
 
-_CLIMO_PATH = pathlib.Path(__file__).resolve().parents[1] / "data" / "doha_wbgt_16yr.csv"
+_CLIMO_PATH = pathlib.Path(__file__).parent / "data" / "climatology.json"
 _climo_cache: dict = {}
 
 
-def _climo_df():
-    """The 16-year Doha WBGT record (hourly, 2010 to 2026), local time added.
-    Cached for the process. This is the OTHH-station series, the only long WBGT
-    record Harara holds; climatology_compare and heat_trend describe it and note
-    that it does not resolve individual sites."""
-    if "df" not in _climo_cache:
-        import pandas as pd
+def _climo_data() -> dict:
+    """The distilled 16-year Doha WBGT record climatology_compare and
+    heat_trend need: daily daylight peaks binned by day-of-year, and the
+    warm-season stop-work-hour count per year. Cached for the process.
 
-        df = pd.read_csv(_CLIMO_PATH, usecols=["time", "wbgt_c"])
-        t = pd.to_datetime(df["time"], utc=True).dt.tz_convert("Asia/Qatar")
-        df["date"] = t.dt.date
-        df["hour"] = t.dt.hour
-        df["doy"] = t.dt.dayofyear
-        df["year"] = t.dt.year
-        df["month"] = t.dt.month
-        _climo_cache["df"] = df
-    return _climo_cache["df"]
+    This is built by scripts/build_climatology_table.py from the full
+    OTHH-station record (data/doha_wbgt_16yr.csv) and shipped under
+    api/data/, unlike that source file: api/data/ is what both Dockerfiles
+    COPY and what git tracks (data/** in .gitignore does not reach the
+    nested api/data/), so this is what is actually present in a deployed
+    container. Reading the source CSV directly here was a real production
+    bug - see the module docstring of build_climatology_table.py."""
+    if "data" not in _climo_cache:
+        import numpy as _np
+
+        raw = json.loads(_CLIMO_PATH.read_text())
+        peaks = raw["daily_peaks"]
+        _climo_cache["doy"] = _np.array([p["doy"] for p in peaks])
+        _climo_cache["peak"] = _np.array([p["peak_wbgt_c"] for p in peaks])
+        _climo_cache["n_years"] = len({p["year"] for p in peaks})
+        _climo_cache["annual_stop_work_hours"] = {
+            int(y): v for y, v in raw["annual_stop_work_hours"].items()}
+        _climo_cache["last_date"] = dt.date.fromisoformat(raw["last_date"])
+    return _climo_cache
 
 
 def climatology_compare(lat: float, lon: float, date: dt.date, *,
@@ -377,11 +384,11 @@ def climatology_compare(lat: float, lon: float, date: dt.date, *,
 
     import numpy as _np
 
-    df = _climo_df()
+    data = _climo_data()
     doy = date.timetuple().tm_yday
     lo, hi = doy - window_days, doy + window_days
-    sel = df[(df["doy"].between(lo, hi)) & (df["hour"].between(5, 19))]
-    peaks = sel.groupby("date")["wbgt_c"].max().to_numpy()
+    mask = (data["doy"] >= lo) & (data["doy"] <= hi)
+    peaks = data["peak"][mask]
     if len(peaks) < 30:
         return {"available": True, "source": used, "date": date.isoformat(),
                 "forecast_peak_wbgt": fc_peak, "comparable": False,
@@ -406,7 +413,7 @@ def climatology_compare(lat: float, lon: float, date: dt.date, *,
         "climatology_p90_peak": round(p90, 1),
         "percentile": round(pct),
         "verdict": verdict,
-        "record_years": int(df["year"].nunique()),
+        "record_years": data["n_years"],
         "window_days": window_days,
         "note": ("Distribution is the Doha OTHH station record; it does not "
                  "resolve individual sites."),
@@ -418,18 +425,16 @@ def heat_trend(lat: float, lon: float, *, today: dt.date | None = None) -> dict:
     the 16-year Doha record, and the direction of the trend. Answers 'has heat
     been increasing here'."""
     import numpy as _np
-    import pandas as pd
 
-    df = _climo_df()
-    warm = df[(df["month"].between(6, 9)) & (df["hour"].between(6, 18))]
-    per_year = (warm.assign(over=warm["wbgt_c"] > THRESHOLD_C)
-                .groupby("year")["over"].sum())
-    last_date = pd.Timestamp(max(df["date"]))
+    data = _climo_data()
+    per_year = data["annual_stop_work_hours"]
+    last_date = data["last_date"]
     partial_tail = (last_date.month, last_date.day) < (9, 30)
-    if partial_tail and len(per_year) > 3:
-        per_year = per_year.iloc[:-1]
-    yrs = per_year.index.to_numpy(dtype=float)
-    vals = per_year.to_numpy(dtype=float)
+    years_sorted = sorted(per_year)
+    if partial_tail and len(years_sorted) > 3:
+        years_sorted = years_sorted[:-1]
+    yrs = _np.array(years_sorted, dtype=float)
+    vals = _np.array([per_year[y] for y in years_sorted], dtype=float)
     slope = float(_np.polyfit(yrs, vals, 1)[0]) if len(yrs) >= 3 else 0.0
     return {
         "source": "Harara technical report section 4.1; 16-year Doha WBGT record",
@@ -467,7 +472,11 @@ def _band(hour: int, lead: int, wbgt: float) -> tuple[float, float, bool]:
         lo = wbgt + q["p10"] * widen
         hi = wbgt + q["p90"] * widen
     lo, hi = min(lo, hi), max(lo, hi)
-    return round(lo, 1), round(hi, 1), bool(lo <= THRESHOLD_C <= hi)
+    lo, hi = round(lo, 1), round(hi, 1)
+    # Compare on the rounded band, not the raw one: a raw hi of 32.099 rounds
+    # to 32.1 and reports "uncertain" to the caller either way, so the flag
+    # has to agree with what is actually shown, not with the unrounded value.
+    return lo, hi, bool(lo <= THRESHOLD_C <= hi)
 
 
 def _dry_hot(fc_hours, target_date: dt.date, tz: str, wbgt_by_hour: dict) -> bool:

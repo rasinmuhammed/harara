@@ -101,5 +101,6 @@ run eval/agent_eval.py --model "${AGENT_MODEL:-mock}" --json data/agent_eval.jso
 # Small distilled tables the API ships (forecast-error band, one replay week).
 run_if data/doha_forecast_archive.csv scripts/build_residual_table.py
 run_if data/doha_wbgt_16yr.csv scripts/build_replay_weeks.py
+run_if data/doha_wbgt_16yr.csv scripts/build_climatology_table.py
 
 echo; echo "=== done. see docs/technical_report.md ==="
