@@ -15,8 +15,12 @@ that only local observation resolves.
 Data (all homogeneous, 2014-2026 overlap):
   - OTHH METAR hourly  - station truth (temp, dewpoint->RH, wind, dir,
     MSLP, visibility, dust/haze present-weather flags)
-  - Open-Meteo reanalysis, patched  - the gridded product under test
-    (temp, RH, wind, pressure, shortwave/direct radiation, Liljegren WBGT)
+  - Open-Meteo reanalysis, RAW (unpatched)  - the gridded product under
+    test (temp, RH, wind, pressure; radiation/solar-geometry and WBGT
+    recomputed here rather than read from data/doha_wbgt_16yr.csv, which
+    from scripts/patch_humidity.py onward substitutes METAR temperature
+    and dewpoint for 71.7% of hours and would make this comparison partly
+    circular - see load_daily())
 
 Method
   1. Daily daytime (10-17 local) aggregates for both sources, warm season
@@ -133,15 +137,43 @@ def load_daily():
     mt["tw"] = wet_bulb_from_dewpoint(mt["temp_c"].to_numpy(),
                                       mt["dewpoint_c"].to_numpy())
 
-    rn = pd.read_csv(REPO / "data" / "doha_wbgt_16yr.csv")
-    rn["time"] = pd.to_datetime(rn["time"], utc=True)
+    # The "gridded product under test" must be independent of the station on
+    # temperature and humidity - that is the whole point of this study.
+    # data/doha_wbgt_16yr.csv is no longer that: scripts/patch_humidity.py
+    # substitutes METAR temperature and dewpoint into it for 71.7% of hours,
+    # so reading it here for T/RH would compare the station against itself
+    # on most days and silently collapse every bias in this section toward
+    # zero. Use the raw, unpatched Open-Meteo archive for temperature and
+    # RH instead. Wind is a separate, already-documented defect
+    # (section 4.2) patched only from November 2024; take wind (and
+    # pressure, radiation, solar geometry - none of them touched by the
+    # humidity patch) from the current pipeline file so this section
+    # measures the regime's extra error on top of the wind fix, not a
+    # rediscovery of the wind defect itself.
+    om = pd.read_csv(REPO / "data" / "doha_openmeteo_16yr.csv",
+                      usecols=["time", "temperature_2m", "relative_humidity_2m"])
+    om["time"] = pd.to_datetime(om["time"], utc=True)
+    rad = pd.read_csv(REPO / "data" / "doha_wbgt_16yr.csv",
+                       usecols=["time", "solar_wm2", "direct_wm2", "cos_zenith",
+                                "wind_speed_ms", "surface_pressure"])
+    rad["time"] = pd.to_datetime(rad["time"], utc=True)
+    rn = om.merge(rad, on="time", how="inner").rename(
+        columns={"wind_speed_ms": "wind_speed_10m"})
     rn["tw"] = wet_bulb_stull(rn["temperature_2m"].to_numpy(),
                               rn["relative_humidity_2m"].to_numpy())
+    rn["wbgt_c"] = wbgt_liljegren_c(
+        temp_c=rn["temperature_2m"].to_numpy(),
+        rh_pct=rn["relative_humidity_2m"].to_numpy(),
+        pressure_hpa=rn["surface_pressure"].to_numpy(),
+        wind_speed_10m_ms=rn["wind_speed_10m"].to_numpy(),
+        shortwave_wm2=np.nan_to_num(rn["solar_wm2"].to_numpy()),
+        direct_wm2=np.nan_to_num(rn["direct_wm2"].to_numpy()),
+        cos_zenith=rn["cos_zenith"].to_numpy())
     # station WBGT using COMMON (reanalysis) radiation + geometry, so the
     # station-vs-grid WBGT gap reflects T/RH/wind/pressure only.
     j = mt.merge(rn[["time", "solar_wm2", "direct_wm2", "cos_zenith",
                      "wbgt_c", "temperature_2m", "relative_humidity_2m",
-                     "wind_speed_ms", "surface_pressure", "tw"]],
+                     "wind_speed_10m", "surface_pressure", "tw"]],
                  on="time", how="inner", suffixes=("_mt", "_rn"))
     # station WBGT uses reanalysis surface pressure (METAR MSLP has many
     # gaps; pressure changes WBGT by <0.1 C so this is immaterial and
@@ -149,7 +181,7 @@ def load_daily():
     j["wbgt_station"] = wbgt_liljegren_c(
         temp_c=j["temp_c"].to_numpy(), rh_pct=j["rh_pct"].to_numpy(),
         pressure_hpa=j["surface_pressure"].to_numpy(),
-        wind_speed_10m_ms=j["wind_speed_ms_mt"].to_numpy(),
+        wind_speed_10m_ms=j["wind_speed_ms"].to_numpy(),
         shortwave_wm2=np.nan_to_num(j["solar_wm2"].to_numpy()),
         direct_wm2=np.nan_to_num(j["direct_wm2"].to_numpy()),
         cos_zenith=j["cos_zenith"].to_numpy())
@@ -165,14 +197,14 @@ def load_daily():
     daily = pd.DataFrame({
         # station daytime means
         "st_rh": g["rh_pct"].mean(), "st_t": g["temp_c"].mean(),
-        "st_tw": g["tw_mt"].mean(), "st_wind": g["wind_speed_ms_mt"].mean(),
+        "st_tw": g["tw_mt"].mean(), "st_wind": g["wind_speed_ms"].mean(),
         "st_tmax": g["temp_c"].max(), "st_twmax": g["tw_mt"].max(),
         "nw_frac": g["nw"].mean(),
         "dust_frac": g["is_dust"].mean(), "haze_frac": g["is_haze"].mean(),
         "min_vis": g["visibility_km"].min(),
         # reanalysis daytime means
         "rn_rh": g["relative_humidity_2m"].mean(), "rn_t": g["temperature_2m"].mean(),
-        "rn_tw": g["tw_rn"].mean(), "rn_wind": g["wind_speed_ms_rn"].mean(),
+        "rn_tw": g["tw_rn"].mean(), "rn_wind": g["wind_speed_10m"].mean(),
         # WBGT (common radiation)
         "wbgt_rn": g["wbgt_c"].mean(), "wbgt_st": g["wbgt_station"].mean(),
     }).dropna(subset=["st_rh", "rn_rh"])

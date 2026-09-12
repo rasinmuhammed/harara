@@ -14,14 +14,14 @@ const FINDINGS: { claim: string; result: string; href: string; cite: string }[] 
   {
     claim: "Modern public forecasts already predict Doha WBGT well.",
     result:
-      "Raw 24 to 72 hour WBGT forecasts run 0.8 to 1.0 C mean error at about a 7 percent miss rate. A learned bias-correction, trained walk-forward, made every metric worse: it regresses toward climatology and under-predicts the hot tail.",
+      "Raw 24 to 72 hour WBGT forecasts run 1.0 to 1.1 C mean error at a 12 to 14 percent miss rate. A learned bias-correction, trained walk-forward, lowers the mean error but more than doubles the miss rate: it regresses toward climatology and under-predicts the hot tail, which is the one failure mode that matters for a stop-work call.",
     href: `${REPORT}#51-bias-correcting-nwp-wbgt`,
     cite: "Technical report, section 5.1",
   },
   {
     claim: "AI weather models are not the risk here. NOAA GFS is.",
     result:
-      "On identical hours, ECMWF IFS and AIFS place the 32.1 C stop-work hours within 6 to 15 percent. NOAA GFS runs about 0.7 C cold on WBGT and misses roughly 40 percent of those hours at every lead, and the bias worsens in the days before a heat wave.",
+      "On identical hours, ECMWF IFS and AIFS place the 32.1 C stop-work hours within 12 to 18 percent. NOAA GFS runs 0.3 to 0.8 C cold on WBGT and misses 40 to 45 percent of those hours at every lead, and the bias worsens in the days before a heat wave.",
     href: `${LEDGER}`,
     cite: "Results ledger, rows 23 and 26",
   },

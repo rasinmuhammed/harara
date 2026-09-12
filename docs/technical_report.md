@@ -133,21 +133,30 @@ correction model was trained walk-forward.
 
 | Lead | Raw forecast MAE | Raw forecast miss rate | Corrected (LightGBM) |
 |---|---|---|---|
-| 24 h | 0.80 C | 6.8% | MAE 0.92, miss 29.5% |
-| 48 h | 0.93 C | 8.8% | MAE 1.03, miss 31.8% |
-| 72 h | 1.00 C | 10.6% | MAE 1.08, miss 32.3% |
+| 24 h | 1.01 C | 11.7% | MAE 0.95, miss 26.0% |
+| 48 h | 1.10 C | 13.5% | MAE 1.03, miss 27.3% |
+| 72 h | 1.14 C | 14.2% | MAE 1.06, miss 28.1% |
 
 Miss rate is the fraction of true WBGT > 32.1 C hours the prediction placed
 below 32.1, over the walk-forward test set (6153 exceedance hours in the
-observation-only study, 1194 in the NWP study). The raw forecast bias is
-between -0.28 C (recent) and +0.59 C (full sample), small and non-stationary.
-The learned correction degrades every metric: an MAE-minimising model regresses
-toward climatology and under-predicts the hot tail.
+observation-only study, 1252 in the NWP study). The raw forecast bias is
+small and near zero at every lead (-0.05 to -0.02 C on this test set).
+Re-run on the humidity-corrected truth series, the finding changes in kind,
+not just size: the correction now wins on headline MAE and RMSE at every
+lead (24 h: MAE 1.01 -> 0.95 C, RMSE 1.32 -> 1.24 C) where it previously lost
+on both. It still substantially worsens the miss rate that actually matters
+for a stop-work decision (11.7% -> 26.0% at 24 h), because it buys a much
+lower false-positive rate (3.0% -> 0.8%) by regressing toward climatology and
+under-predicting the hot tail. The mechanism and the verdict are unchanged -
+an MAE-minimising model is the wrong thing to optimise for a safety
+threshold - but "degrades every metric" is no longer the accurate summary;
+it degrades the one metric that is actually safety-relevant while improving
+the ones that are not.
 
 An observation-only variant (`train_layer1_v1.py`, `tune_layer1_threshold.py`)
-using only past observations beats persistence by 12 to 22% on MAE but not on
+using only past observations beats persistence by 13 to 21% on MAE but not on
 miss rate; lowering the decision threshold recovers a usable safety operating
-point (miss 10% at about 5% false-positive hours, miss 5% at about 7%).
+point (miss 10% at about 5% false-positive hours, miss 5% at about 8%).
 Quantile training helps only marginally and only in the aggressive-safety
 regime.
 
@@ -155,14 +164,14 @@ regime.
 
 `scripts/spatial_representativeness.py`. Nine points across greater Doha, coast
 to 55 km inland, 2015 to 2026. Summer-afternoon WBGT is lower inland (-0.4 C at
-the Industrial Area, -0.8 C in deep desert): the Gulf humidity gradient
-dominates the wet-bulb term over the inland temperature rise. The ACGIH
-work/rest band differs from the airport reference on 23 to 34% of inland
-daylight hours, but a site being unsafe while the reference indicates work is
-permissible occurs on only 1 to 3% of hours. A single grid-cell forecast is, if
-anything, mildly conservative for inland sites at grid scale. Block-scale
-microclimate (a trench, a rooftop, sun-heated steel) is not resolved by any
-public model.
+the Industrial Area, -0.6 C in deep desert, re-verified on the humidity-
+corrected record): the Gulf humidity gradient dominates the wet-bulb term over
+the inland temperature rise. The ACGIH work/rest band differs from the airport
+reference on 23 to 34% of inland daylight hours, but a site being unsafe while
+the reference indicates work is permissible occurs on only 1 to 3% of hours. A
+single grid-cell forecast is, if anything, mildly conservative for inland
+sites at grid scale. Block-scale microclimate (a trench, a rooftop, sun-heated
+steel) is not resolved by any public model.
 
 ### 5.3 The dry-advection regime
 
@@ -188,18 +197,32 @@ result is robust across anomaly thresholds of 6 to 12 points. Earlier
 hand-picked case days that appeared to support the hypothesis were selection
 bias.
 
+Re-verification note: this section's "gridded product under test" has to stay
+independent of the OTHH station, which is also the section's ground truth.
+The humidity correction (section 5.8) breaks that independence for the
+production WBGT file - it substitutes METAR temperature and dewpoint into
+71.7% of its hours - so this script now reads temperature and relative
+humidity from the raw, unpatched Open-Meteo archive instead (wind, pressure
+and radiation, none of them touched by the humidity patch, still come from
+the current pipeline file). Re-run this way, every number above is unchanged
+to two decimal places from the pre-correction report, confirming this
+section's conclusion never depended on the defect the correction fixed.
+
 ### 5.4 Skill on extreme days
 
-`scripts/extreme_event_skill.py`. Forecast MAE by observed-WBGT band is flat
-(0.94 below 28 C, 1.17 in the 32 to 33 C band, 0.88 above 34 C); hours above
-34 C are caught 99.7% of the time; the event peak is under-forecast by more
-than 1 C in only 3% of events. The large errors that do occur concentrate on
-dry-transition days and are over-predictions, driven by the forecast carrying a
-near-constant RH of about 33% regardless of conditions. Adjudicated against the
-station, the reanalysis is also wrong on those days (+2 C air temperature,
-+1.3 m/s wind versus OTHH), so part of the apparent forecast error is target
-error. The defensible residual: on dynamic-transition days no gridded product
-is reliable at the +/-2 C level, and only local observation resolves it.
+`scripts/extreme_event_skill.py`, 24 h lead, re-verified on the humidity-
+corrected truth series. Forecast MAE by observed-WBGT band is close to flat
+(0.95 below 28 C, 1.11 in the 32 to 33 C band, 0.90 above 34 C); hours above
+34 C are caught 99.1% of the time (was 99.7%); the event peak is under-
+forecast by more than 1 C in 6% of events (was 3%). The large errors that do
+occur concentrate on dry-transition days and are over-predictions, driven by
+the forecast carrying a near-constant RH of about 33% regardless of
+conditions. The comparison against the station on those specific days (+2 C
+air temperature, +1.3 m/s wind versus OTHH) predates this correction and has
+not itself been re-run; it should be treated as illustrative of the
+mechanism rather than a re-verified number. The defensible residual: on
+dynamic-transition days no gridded product is reliable at the +/-2 C level,
+and only local observation resolves it.
 
 ### 5.5 What survived
 
@@ -225,65 +248,89 @@ Previous Runs API (`scripts/fetch_previous_runs.py`), at nominal leads of 1 to
 so it cannot yield a WBGT forecast; the study runs a WBGT track (IFS, AIFS,
 GFS) and a 2 m-temperature track (all four). WBGT is computed from each
 model's fields through the same Liljegren pipeline as the truth
-(`src/forecast_wbgt.py`). Scoring is walk-forward against the METAR-patched
-observational truth, warm-season (May to September) daylight hours (local
-07:00 to 18:00), with a one-day moving-block bootstrap for 95% intervals. AIFS
-starts only in February 2025 on this feed (about 1.5 warm seasons), so the
-headline tables score every model on the common window per lead; a full-window
-appendix covers IFS and GFS. Heat-wave onset is the first day of a run of at
-least two consecutive days whose daily-maximum WBGT is at or above the 90th
-percentile of strictly prior years, the preceding day below it.
+(`src/forecast_wbgt.py`). Scoring is walk-forward against the METAR-patched,
+humidity-corrected observational truth (section 5.8), warm-season (May to
+September) daylight hours (local 07:00 to 18:00), with a one-day moving-block
+bootstrap for 95% intervals. AIFS starts only in February 2025 on this feed
+(about 1.5 warm seasons), so the headline tables score every model on the
+common window per lead; a full-window appendix covers IFS and GFS. Heat-wave
+onset is the first day of a run of at least two consecutive days whose
+daily-maximum WBGT is at or above the 90th percentile of strictly prior
+years, the preceding day below it.
 
-**WBGT track (common window, warm-season daylight, leads 1 to 7).**
+**WBGT track (common window, warm-season daylight, leads 1, 5, 7).**
 
 | Model | Bias (C) | Miss rate at 32.1 C | FPR |
 |---|---|---|---|
-| IFS | +0.7 to +0.9 | 0.06 (L1) to 0.15 (L7) | 0.18 to 0.21 |
-| AIFS | +0.66 to +0.69 | 0.09 (L1) to 0.13 (L7) | 0.14 to 0.15 |
-| GFS | -0.25 to -0.73 | **0.40 to 0.44, every lead** | 0.04 to 0.09 |
+| IFS | +0.70 to +0.90 | 0.12 (L1) to 0.18 (L7) | 0.19 to 0.21 |
+| AIFS | +0.64 to +0.67 | 0.13 (L1) to 0.16 (L7) | 0.14 to 0.15 |
+| GFS | -0.27 to -0.75 | **0.40 to 0.45, every lead** | 0.03 to 0.09 |
 
-The AI model, AIFS, is statistically indistinguishable from IFS on the miss
-rate: the paired AIFS - IFS difference is +0.03 at leads 1 to 3 (interval just
-clear of zero) and not significant from lead 4. GFS misses about a third more
-true exceedance hours than either, at every lead, with the paired interval far
-from zero (Figure 6). Stratified by observed band at lead 5, GFS bias runs from
-+1.0 C below 28 C to **-2.4 C above 34 C** -- worst exactly in the stop-work
-band -- while IFS stays between +0.4 and +1.0 C across all bands (Figure 10).
+Bias and FPR are essentially unchanged from the pre-correction run; miss
+rates moved up 3 to 6 points for IFS and AIFS (the corrected truth has more
+genuine exceedance hours to miss) while GFS's stayed flat, still clearly the
+worst of the three. The AI model, AIFS, is statistically indistinguishable
+from IFS on the miss rate, and more clearly so than before: the paired
+AIFS - IFS difference is +0.01 to +0.03 across leads 1 to 7 and its interval
+is clear of zero only at lead 2 (+0.03 [+0.00,+0.05]); every other lead
+includes zero. GFS misses about a quarter to a third more true exceedance
+hours than either, at every lead, with the paired interval far from zero
+(Figure 6). Stratified by observed band at lead 5, GFS bias runs from +0.92 C
+below 28 C to **-2.21 C above 34 C** -- worst exactly in the stop-work band --
+while IFS stays between +0.37 and +1.06 C across all bands (Figure 10).
 
 **The cold-bias direction, on WBGT.** In the five days before a heat-wave
-onset, GFS WBGT bias is -0.85 to -1.05 C against an all-days bias of -0.25 to
--0.73 C: its cold bias worsens ahead of heat waves, the published direction.
-IFS and AIFS show no such excursion; both stay warm-biased (Figure 8). Leads
-are capped at 7 days here, so the 8 to 10 day part of the published window is
-not probed; this is bias at leads 1 to 7 for forecasts valid in the days
-before onset, not a full replication.
+onset, GFS WBGT bias is -1.02 to -1.23 C against an all-days bias of -0.27 to
+-0.75 C: its cold bias worsens ahead of heat waves, the published direction,
+and by slightly more than the pre-correction run showed. IFS and AIFS show no
+such excursion; both stay warm-biased, AIFS if anything more so ahead of
+onset (+0.93 to +1.17 C) than on all days (+0.64 to +0.67 C) (Figure 8).
+Leads are capped at 7 days here, so the 8 to 10 day part of the published
+window is not probed; this is bias at leads 1 to 7 for forecasts valid in the
+days before onset, not a full replication.
 
-**2 m temperature track (the direct replication).** Here the published finding
-does appear for AIFS: 2 m temperature bias of -1.4 to -1.7 C, missing about 97
-to 100% of hours above the prior-years 95th percentile (about 42.5 C). GFS is
-also cold (-1.2 to -2.0 C); a cold bias is therefore not unique to the AI
-model. IFS runs warm (+0.8 to +1.1 C). GraphCast runs **warm** on this feed
-(+0.4 to +1.0 C), the opposite of the published sign, though its coverage is
-sparse and gappy and the common window falls to about 500 hours at some leads
-(Figure 9).
+**2 m temperature track (the direct replication).** This track moved the
+most on re-verification, because `patch_humidity.py` corrects the truth
+series' own 2 m temperature, not just its humidity, for 71.7% of hours - and
+the pre-correction Open-Meteo archive ran warm as well as dry in exactly this
+period (section 5.8). Every model's apparent bias against that truth shifts
+in the same direction as a result. AIFS's cold bias against the corrected
+truth roughly halves (-0.24 to -0.55 C, was -1.4 to -1.7 C) but the practical
+finding does not change: it still misses 91 to 100% of hours above the
+prior-years 95th percentile (about 42 C), across leads 1 to 7. GFS's cold
+bias shrinks the same way (-0.90 to +0.01 C, was -1.2 to -2.0 C; miss rate 64
+to 86%). IFS and GraphCast, which were never cold-biased, move the other
+way and now run substantially warmer against the corrected truth: IFS +1.90
+to +2.32 C (was +0.8 to +1.1 C), GraphCast **+1.53 to +2.25 C** (was +0.4 to
++1.0 C) - still the opposite sign from the published finding, and more
+clearly so, though GraphCast's coverage is still sparse and gappy and the
+common window falls to about 500 to 1,400 hours depending on lead (Figure 9).
 
 **Why the WBGT and temperature results diverge for AIFS.** Component bias on
-the common window (lead 1, core daylight): AIFS air temperature -1.5 C,
-relative humidity **+6.2%**, wind -0.55 m/s. The natural wet-bulb term is 0.7
-of WBGT, so the humidity high bias more than offsets the air-temperature cold
-bias, leaving AIFS WBGT slightly warm (+0.66 C). GFS has the same air-
-temperature cold bias (-1.7 C) but only +1.6% on humidity, so it stays cold in
-WBGT. A cold air-temperature bias is not a cold humid-heat bias; the two must
-be evaluated separately.
+the common window (lead 1, core daylight) also moved with the truth-series
+correction: AIFS air temperature -0.14 C (was -1.5 C), relative humidity
++0.3% (was +6.2%), wind -0.55 m/s (unchanged; wind is not touched by the
+humidity patch). The previous story - a large cold-temperature bias mostly
+offset by a large moist-humidity bias - measured the old truth series' own
+warm-and-dry drift as much as it measured AIFS's forecast error; both of
+AIFS's component biases against the corrected truth are now small. AIFS's
+WBGT bias itself barely moved (+0.64 to +0.67 C, was +0.66 to +0.69 C), so
+what is left to explain it is the smaller residual temperature and humidity
+biases together with AIFS's own low wind bias, which inflates WBGT. GFS's
+component bias shrank the same way (temperature -0.48 C, was -1.7 C;
+humidity -4.2%, was +1.6%) and its WBGT stays cold, as in the table above. A
+cold air-temperature bias is still not the same thing as a cold humid-heat
+bias; the two still have to be evaluated separately, and both are now more
+sensitive to the truth series than the original write-up assumed.
 
 **GraphCast bound (synthetic).** Splicing GraphCast 2 m temperature into IFS
 humidity, wind and radiation (not any real system's output) gives a WBGT bias
-of +0.5 to +1.0 C and a miss rate of 0.15 to 0.28 -- safe-side, between IFS and
+of +0.2 to +0.9 C and a miss rate of 0.22 to 0.36 -- safe-side, between IFS and
 GFS. GraphCast's temperature error is not a stop-work hazard in the cold
 direction.
 
 **Caveats.** AIFS has about 1.5 warm seasons; every AIFS number is flagged,
-though the miss-rate intervals ([0.07, 0.17] across leads) are tight enough to
+though the miss-rate intervals ([0.10, 0.21] across leads) are tight enough to
 support "about IFS, well below GFS". IFS forecast 10 m wind runs -1.5 m/s
 against the METAR-patched truth, which inflates IFS forecast WBGT (safe-side);
 GFS forecast wind is close to truth (+0.16 m/s), so the GFS cold WBGT bias is
@@ -291,9 +338,10 @@ not a wind artefact. Shoulder months (April, October) carry only about 30
 daylight exceedance hours across the whole forecast era and are not scored. The
 truth is one station's patched series; the repo's 2000-2019 GEFS reforecast
 (Section 6) is the decade-scale complement for the GFS family, and its raw
-ensemble-mean WBGT RMSE of 1.63 C at day +1 (1.27 C EMOS-calibrated) is in the
-same range as the 1.0 to 1.2 C deterministic-GFS MAE here, both well behind
-the Open-Meteo blend.
+ensemble-mean WBGT RMSE of 1.68 C at day +1 (1.29 C EMOS-calibrated) is in the
+same range as the 1.2 to 1.5 C deterministic-GFS MAE here, both now level
+with, or slightly ahead of in EMOS's case, the 1.01 to 1.14 C Open-Meteo
+blend (section 5.1).
 
 **Verdict: H-E rejected.** The AI model does not degrade humid-heat stop-work
 decisions relative to conventional NWP; AIFS matches the best conventional
@@ -506,7 +554,8 @@ corrected truth series (section 5.8). Ensemble-mean WBGT RMSE is 1.68, 1.74
 and 1.77 C at forecast days 1, 2 and 3; EMOS calibration (nonhomogeneous
 Gaussian regression, per lead and month) brings that to 1.29, 1.36 and 1.41
 C. For reference (non-paired, the archives do not overlap in time) the
-Open-Meteo blend achieves 0.80 to 1.00 C at the same leads - the raw GEFS
+Open-Meteo blend achieves 1.01 to 1.14 C at the same leads (section 5.1,
+re-verified) - the raw GEFS
 point forecast is not competitive with the operational blend at this single
 coastal point, which is expected: GEFS v12 is a frozen 2000-vintage 0.25
 degree model, not a modern data-assimilating system.
@@ -519,9 +568,16 @@ improves CRPS by 32 to 36% (CRPSS +0.32 to +0.36, interval clear of zero at
 every forecast day, e.g. [+0.32, +0.41] at day 1) - slightly better than the
 pre-correction figure (+0.30 to +0.33), since the corrected target carries
 more genuine variability for EMOS to explain. EMOS mean absolute error (0.98
-to 1.09 C) is close to but still behind the Open-Meteo blend reference. May
-is data-thin and its EMOS cells pool to the neighbouring months and then to
-a lead-only fit (9 cells flagged in `data/gefs_emos.json`).
+to 1.09 C) is now level with, and at some leads slightly ahead of, the
+Open-Meteo blend reference (1.01 to 1.14 C, section 5.1, also re-verified) -
+before the correction the blend was clearly ahead (0.80 to 1.00 C). The
+comparison is still non-paired (the archives do not overlap in time) and the
+GEFS record is a 2000-2019 archive against the blend's 2022-2026 forecast
+window, so this is not evidence GEFS has caught up; it says the two numbers
+moved together when the same correction was applied to both targets, which
+is what re-verification is supposed to show. May is data-thin and its
+EMOS cells pool to the neighbouring months and then to a lead-only fit
+(9 cells flagged in `data/gefs_emos.json`).
 
 **Reliability** (`scripts/gefs_reliability_study.py`): 9 overlap years
 (2011-2019; one fewer than calibration, since the anomaly features need a
@@ -955,15 +1011,25 @@ step against capsule temperature.
 2. Strengthening the GEFS reliability classifier (section 6.4) past a modest
    lift over the spread-decile baseline into an operationally useful alarm,
    and re-running it once more overlap years accumulate past 2019.
-3. The humidity correction (section 5.8) is applied and sections 4, 6, 7 and 8
-   are re-verified against it. Sections 5.1 to 5.4 and 5.6 (forecast bias,
-   spatial downscaling, the dry-advection regime, skill on extreme days, and
-   the AI-weather-model study) still report figures computed before the
-   correction; they are comparative or skill-based findings less likely to
-   reverse from a roughly 0.2 to 0.3 C level shift in the truth series than
-   the level-and-trend claims in section 4 were, but they have not yet been
-   re-run and should be treated as pending re-verification, not confirmed
-   twice.
+3. The humidity correction (section 5.8) is applied and every downstream
+   section (4, 5.1 through 5.4, 5.6, 6, 7 and 8) is re-verified against it.
+   None reversed, but two changed materially. Section 5.1's headline changed
+   in kind rather than size: the LightGBM correction now beats the raw
+   forecast on MAE and RMSE, where before it lost on both, though it still
+   substantially worsens the safety-relevant miss rate either way. Section
+   5.6's 2 m temperature track moved the most of anything re-verified,
+   because the correction fixes the truth series' own temperature, not just
+   its humidity: AIFS's and GFS's apparent cold bias roughly halved, while
+   IFS's and GraphCast's warm bias grew by about the same amount the other
+   way, and the component-bias explanation for AIFS's WBGT result had to be
+   rewritten since the biases it previously relied on were partly the old
+   truth series' own drift. Section 5.3 required a methodology fix, not just
+   a re-run: its comparison reads temperature and humidity from the
+   production WBGT file, which the correction now substitutes with METAR
+   for 71.7% of hours, silently turning "gridded product versus station"
+   into "station versus itself" for most days; re-pointed at the raw,
+   unpatched Open-Meteo archive for temperature and RH, every number came
+   back unchanged to two decimal places.
 4. Instrumented sites for block-scale microclimate, which sections 5.2 and 5.4
    show public products cannot provide.
 
