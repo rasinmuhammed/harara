@@ -12,6 +12,18 @@ type Val = LngLat & { name?: string };
 const NUDGE = 0.01;
 const FINE = 0.002;
 
+function slugify(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+type SiteHeatSummary = {
+  bbox: [number, number, number, number];
+  cv_rmse_c: number;
+  zones: { typical_difference_c?: number; vegetated_mean_c?: number; bare_or_built_mean_c?: number };
+  landsat_scenes_used: number;
+  sentinel2_scenes_used: number;
+};
+
 function addCellLayers(map: any, tokens: ReturnType<typeof tokensFromCSS>, v: LngLat) {
   if (!map.getSource("cell")) {
     map.addSource("cell", { type: "geojson", data: forecastCell(v.lat, v.lon) as any });
@@ -59,6 +71,29 @@ function addCellLayers(map: any, tokens: ReturnType<typeof tokensFromCSS>, v: Ln
   }
 }
 
+function addHeatLayer(map: any, bbox: [number, number, number, number], imageUrl: string) {
+  const [minlon, minlat, maxlon, maxlat] = bbox;
+  const coordinates: [number, number][] = [
+    [minlon, maxlat], [maxlon, maxlat], [maxlon, minlat], [minlon, minlat],
+  ];
+  if (map.getSource("site-heat")) {
+    (map.getSource("site-heat") as any).updateImage({ url: imageUrl, coordinates });
+    return;
+  }
+  map.addSource("site-heat", { type: "image", url: imageUrl, coordinates });
+  map.addLayer({
+    id: "site-heat-layer",
+    type: "raster",
+    source: "site-heat",
+    paint: { "raster-opacity": 0.62, "raster-fade-duration": 200 },
+  });
+}
+
+function removeHeatLayer(map: any) {
+  if (map.getLayer("site-heat-layer")) map.removeLayer("site-heat-layer");
+  if (map.getSource("site-heat")) map.removeSource("site-heat");
+}
+
 export function SiteMap({
   value,
   onChange,
@@ -79,8 +114,28 @@ export function SiteMap({
   const [searching, setSearching] = useState(false);
   const [offscreen, setOffscreen] = useState(false);
   const [live, setLive] = useState("");
+  const [heatSlugs, setHeatSlugs] = useState<Set<string>>(new Set());
+  const [heatOn, setHeatOn] = useState(false);
+  const [heatSummary, setHeatSummary] = useState<SiteHeatSummary | null>(null);
+  const [heatLoading, setHeatLoading] = useState(false);
   const valueRef = useRef(value);
   valueRef.current = value;
+
+  const heatSlug = value.name ? slugify(value.name) : "";
+  const heatAvailable = heatSlugs.has(heatSlug);
+
+  // which sites have a precomputed satellite surface-heat layer
+  useEffect(() => {
+    fetch("/api/site-heat")
+      .then((r) => (r.ok ? r.json() : { sites: [] }))
+      .then((j) => setHeatSlugs(new Set((j.sites ?? []).map((s: any) => s.slug))))
+      .catch(() => {});
+  }, []);
+
+  // turning the layer off, or moving to a site without one, clears it
+  useEffect(() => {
+    if (!heatAvailable && heatOn) setHeatOn(false);
+  }, [heatAvailable, heatOn]);
 
   function place(lat: number, lon: number, name?: string) {
     onChange({ lat: +lat.toFixed(4), lon: +lon.toFixed(4), name });
@@ -197,8 +252,39 @@ export function SiteMap({
     const tokens = tokensFromCSS(document.documentElement, theme);
     const styleUrl = MAP_STYLES[theme === "light" ? "light" : "dark"];
     map.setStyle(styleUrl);
-    map.once("style.load", () => addCellLayers(map, tokens, valueRef.current));
+    map.once("style.load", () => {
+      addCellLayers(map, tokens, valueRef.current);
+      if (heatOn && heatSummary) addHeatLayer(map, heatSummary.bbox, `/api/site-heat/${heatSlug}/image`);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [theme, status]);
+
+  // the satellite surface-heat overlay: advisory only, a climatological
+  // pattern from recent summers, never the WBGT forecast
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || status !== "ready") return;
+    if (!heatOn || !heatAvailable) {
+      removeHeatLayer(map);
+      setHeatSummary(null);
+      return;
+    }
+    let cancelled = false;
+    setHeatLoading(true);
+    fetch(`/api/site-heat/${heatSlug}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (cancelled || !j || !j.bbox) return;
+        setHeatSummary(j);
+        addHeatLayer(mapRef.current, j.bbox, `/api/site-heat/${heatSlug}/image`);
+      })
+      .catch(() => {})
+      .finally(() => !cancelled && setHeatLoading(false));
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [heatOn, heatAvailable, heatSlug, status]);
 
   // keyless Nominatim search, debounced, degrades to nothing
   useEffect(() => {
@@ -283,6 +369,21 @@ export function SiteMap({
             {p.name}
           </button>
         ))}
+        {heatAvailable && (
+          <button
+            type="button"
+            onClick={() => setHeatOn((v) => !v)}
+            aria-pressed={heatOn}
+            title="A typical surface-heat pattern from satellite images over recent summers. Not today's forecast."
+            className={`ml-auto rounded-full border px-2.5 py-1 text-sm transition-colors ${
+              heatOn
+                ? "border-accent bg-accent-weak text-ink"
+                : "border-border text-ink-secondary hover:border-border-strong hover:text-ink"
+            }`}
+          >
+            {heatLoading ? "Loading surface heat…" : heatOn ? "Surface heat: on" : "Surface heat pattern"}
+          </button>
+        )}
       </div>
 
       <div className="relative">
@@ -398,6 +499,19 @@ export function SiteMap({
         one trench.
         {inland ? " Inland tends to read a little cooler on this index because the air is drier." : ""}
       </p>
+
+      {heatOn && heatSummary && (
+        <p className="text-sm text-ink-muted">
+          The orange overlay shows where the ground itself tends to run hotter
+          or cooler nearby, from satellite images over recent summers
+          ({heatSummary.landsat_scenes_used + heatSummary.sentinel2_scenes_used} clear scenes). This is
+          not a forecast and it is not part of the plan above.
+          {heatSummary.zones.typical_difference_c != null && (
+            <> Paved or built-up ground here typically runs about {heatSummary.zones.typical_difference_c}
+              {"°"}C warmer than shaded or vegetated ground nearby.</>
+          )}
+        </p>
+      )}
 
       <p aria-live="polite" className="sr-only">{live}</p>
     </div>

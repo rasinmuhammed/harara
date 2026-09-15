@@ -170,6 +170,18 @@ debounced, degrades to nothing) and manual lat/lon entry are both always
 present. Under `prefers-reduced-motion` or `Save-Data` the pulse stops and the
 camera snaps instead of easing.
 
+### Satellite surface-heat overlay
+
+An opt-in raster image layer (MapLibre `image` source), off by default, shown
+only where a precomputed layer exists (`/api/site-heat`, see technical report
+5.9). It uses matplotlib's `inferno` colormap, not the app's WBGT ramp: this
+is a deliberate, visible difference, since the two are different quantities
+(a climatological satellite pattern versus a live WBGT forecast) and must
+never look like the same kind of number. Opacity 0.62 so the street layout
+stays legible underneath. The toggle button and its caption both state
+"satellite images over recent summers... not today's forecast" so the
+distinction is never left to color alone.
+
 ## Plain-language work types (`lib/worktypes.ts`)
 
 The ACGIH categories (`light` / `moderate` / `heavy` / `very_heavy`) are kept
