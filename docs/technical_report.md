@@ -538,15 +538,15 @@ it as an opt-in overlay, off by default, with its own colour ramp distinct
 from the WBGT ramp used everywhere else, so the two are never visually
 confused.
 
-### 5.10 A second GCC index, and a blocked third
+### 5.10 A second and a third GCC index
 
 Qatar is the only GCC state that mandates WBGT by law; the others run
 calendar-only midday bans, and industry practice in the wider region also
 references at least two other indices: Dubai's heat-index-style "feels
-like" reading, and Abu Dhabi's Thermal Work Limit (TWL). Step one of
-comparing them is implemented and run against the same 16-year Doha
-record used throughout this report, so this is a characterisation on
-real data from day one, not a formula sitting untested.
+like" reading, and Abu Dhabi's Thermal Work Limit (TWL). Both are now
+implemented against the same 16-year Doha record used throughout this
+report, so this is a characterisation on real data from day one, not a
+formula sitting untested.
 
 `src/heat_index.py` implements the NWS Rothfusz regression (Rothfusz,
 1990) exactly, including both correction terms and the low-heat-index
@@ -569,17 +569,54 @@ contractor operating under Dubai's index instead of Qatar's would reach
 a different stop-work judgement on a material fraction of real Doha
 summer afternoons.
 
-**Abu Dhabi's Thermal Work Limit is not implemented, and should not be
-guessed at.** TWL (Brake & Bates, 2002) is a heat-balance index using
-dry-bulb, natural wet-bulb, globe temperature, wind and pressure, with a
-published risk-band structure, but its actual closed-form equations sit
-behind a paywalled journal article (*Applied Occupational and
-Environmental Hygiene*, 17(3):176-186) and no secondary source found
-reproduces them in full -- only qualitative descriptions of the method.
-Implementing TWL from a partial description would mean shipping
-fabricated physics under a real citation, which this project does not
-do. It is listed here as blocked, not silently dropped, pending access
-to the primary source.
+**Abu Dhabi's Thermal Work Limit was initially blocked, then unblocked
+by the primary source itself.** TWL (Brake & Bates, 2002) is a
+heat-balance index using dry-bulb, natural wet-bulb, globe temperature,
+wind and pressure, with a published risk-band structure, but its
+closed-form equations sit behind a paywalled journal article and no
+secondary source found reproduces them in full. The primary source
+does exist in full, though: Brake's 2002 Curtin University PhD thesis
+(the same derivation the journal paper condenses) is openly available
+from Curtin's repository, and its Appendix C reproduces the actual
+Visual Basic reference implementation Brake distributed to industry --
+not just the equations, the shipped, validated code. `src/twl.py` is a
+direct function-for-function port of that reference implementation
+(`fHstTWLnew`, "TWL Formulation I: Standard Formulation").
+
+That code turned out to matter for more than convenience: Chapter 3.1's
+narrative derivation (the readable walkthrough, pp. 95-107) describes a
+three-zone piecewise evaporation model, and a first implementation
+against that narrative alone produced a real bug -- TWL was
+non-monotonic in air temperature, occasionally reading *higher* at a
+hotter temperature than a cooler one, traced to a genuine discontinuity
+in the narrative's own printed zone-boundary formula (independently
+re-verified against the source page, not a transcription slip on this
+project's part). Appendix C's actual code resolved it: the shipped
+`fQbalError` function assumes fully wet skin throughout the energy
+balance (skin wettedness = 1) and does not use the zone model at all --
+the narrative section describes the physiological reasoning behind
+the index, not the formula that ships. The port here follows the code,
+is monotonic in temperature, humidity and wind as a heat-stress index
+should be, and reproduces the thesis's own Figure 18 comparison chart
+(Hot, Dry, DB=MRT=WB+10, 0.5 m/s) to within a few W/m^2 at every
+wet-bulb point read off it (`tests/test_twl.py`).
+
+One further real behaviour carried over from the reference code: TWL is
+not simply "solve at the 38.2 C core-temperature limit and stop." The
+reference implementation scans trial core temperature upward and halts
+at whichever limit is reached first, core temperature or the 1.2 kg/hr
+sweat-rate cap; `src/twl.py` replaces the discrete 0.1 C scan with an
+exact root-find for the same crossing. In hot, humid conditions --
+Doha's, specifically -- the sweat-rate cap binds before the core-
+temperature cap materially more often than in hot, dry conditions, so
+this is not a corner case for this project's actual use.
+
+Not yet done: wiring TWL to run end-to-end on Harara's own weather
+record. The index needs mean radiant temperature as an input, and
+`thermofeel` (already a dependency, used for WBGT) has no public
+function that derives it from the shortwave-only radiation fields the
+Doha archive carries -- a real, scoped follow-up, not a shortcut taken
+here.
 
 ## 6. GEFS v12 reforecast integration
 
