@@ -100,6 +100,26 @@ the Doha record. `502` if the forecast upstream fails.
 `{ "buckets": { "<intent>": <count> } }` for this process. Counts only, no
 message content.
 
+### `GET /api/site-heat`, `GET /api/site-heat/{slug}`, `GET /api/site-heat/{slug}/image`
+
+A precomputed, advisory satellite surface-heat layer for the app's known
+location presets (Doha, Lusail, Industrial Area, Al Wakrah, Mesaieed), built
+offline by `scripts/build_site_heat_presets.py` from free Landsat and
+Sentinel-2 imagery (see `docs/technical_report.md` section 5.9) and served
+as static files, the same pattern as `/api/replay`. `/api/site-heat` lists
+the available slugs; `/api/site-heat/{slug}` returns the summary (bounding
+box, spatial cross-validation RMSE, the vegetated-vs-bare temperature
+difference, and the caveats); `/api/site-heat/{slug}/image` returns the
+rendered PNG overlay. `404` for an unknown slug.
+
+This is a **climatological pattern from recent summers, not a live
+reading**, and it **never appears in `/api/plan` or feeds the WBGT or
+scheduler path**. It exists so a visitor can see where a specific
+neighbourhood tends to run hotter or cooler, for siting and awareness, not
+as a second safety number. Refresh the presets by rerunning the build
+script; there is no live compute in this endpoint, it only serves what that
+script has already written to `api/data/site_heat/`.
+
 ### `GET /api/health`
 
 `{ "status", "version", "llm", "forecast_source", "chat_agent" }`. `chat_agent`

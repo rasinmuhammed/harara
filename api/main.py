@@ -19,7 +19,7 @@ import pathlib
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
 from api import __version__
 from api.chat import chat_stream
@@ -206,3 +206,28 @@ def replay_week(slug: str):
     if not f.exists() or "/" in slug or ".." in slug:
         raise HTTPException(status_code=404, detail="no such replay")
     return json.loads(f.read_text())
+
+
+@app.get("/api/site-heat")
+def site_heat_index():
+    """Sites with a precomputed satellite surface-heat layer. Advisory only:
+    a climatological pattern, never part of the WBGT or scheduler path. See
+    scripts/build_site_heat_presets.py, which precomputes these offline."""
+    f = pathlib.Path(__file__).parent / "data" / "site_heat" / "index.json"
+    return json.loads(f.read_text()) if f.exists() else {"sites": []}
+
+
+@app.get("/api/site-heat/{slug}")
+def site_heat_summary(slug: str):
+    f = pathlib.Path(__file__).parent / "data" / "site_heat" / f"{slug}.json"
+    if not f.exists() or "/" in slug or ".." in slug:
+        raise HTTPException(status_code=404, detail="no site-heat layer for that site")
+    return json.loads(f.read_text())
+
+
+@app.get("/api/site-heat/{slug}/image")
+def site_heat_image(slug: str):
+    f = pathlib.Path(__file__).parent / "data" / "site_heat" / f"{slug}.png"
+    if not f.exists() or "/" in slug or ".." in slug:
+        raise HTTPException(status_code=404, detail="no site-heat image for that site")
+    return FileResponse(f, media_type="image/png")

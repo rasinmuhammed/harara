@@ -1,0 +1,44 @@
+{
+  "sites": [
+    {
+      "slug": "doha",
+      "name": "Doha",
+      "lat": 25.2854,
+      "lon": 51.531,
+      "typical_difference_c": 2.5,
+      "cv_rmse_c": 2.87
+    },
+    {
+      "slug": "lusail",
+      "name": "Lusail",
+      "lat": 25.43,
+      "lon": 51.49,
+      "typical_difference_c": 1.0,
+      "cv_rmse_c": 1.02
+    },
+    {
+      "slug": "industrial-area",
+      "name": "Industrial Area",
+      "lat": 25.19,
+      "lon": 51.44,
+      "typical_difference_c": 3.5,
+      "cv_rmse_c": 1.46
+    },
+    {
+      "slug": "al-wakrah",
+      "name": "Al Wakrah",
+      "lat": 25.171,
+      "lon": 51.603,
+      "typical_difference_c": -0.6,
+      "cv_rmse_c": 1.25
+    },
+    {
+      "slug": "mesaieed",
+      "name": "Mesaieed",
+      "lat": 24.99,
+      "lon": 51.55,
+      "typical_difference_c": 3.9,
+      "cv_rmse_c": 1.89
+    }
+  ]
+}
