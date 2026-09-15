@@ -538,6 +538,49 @@ it as an opt-in overlay, off by default, with its own colour ramp distinct
 from the WBGT ramp used everywhere else, so the two are never visually
 confused.
 
+### 5.10 A second GCC index, and a blocked third
+
+Qatar is the only GCC state that mandates WBGT by law; the others run
+calendar-only midday bans, and industry practice in the wider region also
+references at least two other indices: Dubai's heat-index-style "feels
+like" reading, and Abu Dhabi's Thermal Work Limit (TWL). Step one of
+comparing them is implemented and run against the same 16-year Doha
+record used throughout this report, so this is a characterisation on
+real data from day one, not a formula sitting untested.
+
+`src/heat_index.py` implements the NWS Rothfusz regression (Rothfusz,
+1990) exactly, including both correction terms and the low-heat-index
+simple formula for the regime it is required in, tested against an
+independently re-derived copy of the same reference (16 cases,
+`tests/test_heat_index.py`), not against the module's own arithmetic.
+`scripts/heat_index_gcc_study.py` runs it over the regulated midday
+window (10:00-15:00, June-September) of the corrected Doha record and
+compares it to WBGT: **Pearson r = 0.87** across 12,258 hours, but heat
+index reads **10.9 C hotter than WBGT on average** (std 2.7 C) on the
+same real weather, because heat index has no wind or solar-radiation
+term, both of which matter outdoors and both of which WBGT includes.
+Using an illustrative comparator only (WBGT's own 32.1 C against the US
+NWS's "danger" band, 41 C -- Dubai has no published numeric heat-index
+stop-work threshold to compare against, only the calendar ban), the two
+flag the same hour 85.0% of the time; heat index alone flags a further
+12.1% of hours WBGT would clear, WBGT alone flags 2.9% heat index would
+clear. The two indices are correlated but not interchangeable: a
+contractor operating under Dubai's index instead of Qatar's would reach
+a different stop-work judgement on a material fraction of real Doha
+summer afternoons.
+
+**Abu Dhabi's Thermal Work Limit is not implemented, and should not be
+guessed at.** TWL (Brake & Bates, 2002) is a heat-balance index using
+dry-bulb, natural wet-bulb, globe temperature, wind and pressure, with a
+published risk-band structure, but its actual closed-form equations sit
+behind a paywalled journal article (*Applied Occupational and
+Environmental Hygiene*, 17(3):176-186) and no secondary source found
+reproduces them in full -- only qualitative descriptions of the method.
+Implementing TWL from a partial description would mean shipping
+fabricated physics under a real citation, which this project does not
+do. It is listed here as blocked, not silently dropped, pending access
+to the primary source.
+
 ## 6. GEFS v12 reforecast integration
 
 A multi-year forecast-reliability study on the Open-Meteo forecast archive is
