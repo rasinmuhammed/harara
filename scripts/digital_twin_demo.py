@@ -23,6 +23,7 @@ turns this into evidence.
 Run:  python scripts/digital_twin_demo.py
 """
 
+import json
 import pathlib
 import sys
 
@@ -32,8 +33,12 @@ import pandas as pd
 REPO = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
+from src.conformal import ConformalCorrection
+from src.conformal import coverage as conformal_coverage
 from src.heat_strain_filter import HeatStrainParticleFilter
 from src.thermoreg import Subject, ThermoState, simulate
+
+CALIBRATION = REPO / "data" / "conformal_calibration.json"
 
 RNG = np.random.default_rng(2026)
 THRESH = 38.5
@@ -108,6 +113,7 @@ def main():
 
     pf_err, ec_err, cov = [], [], []
     pf2_err, cov2 = [], []                 # HR + skin-temp patch variant
+    lo2_all, hi2_all, true2_all = [], [], []   # for conformal calibration demo
     pred_rows = []
     lead_times = []                        # min between first alarm and true crossing
 
@@ -179,6 +185,7 @@ def main():
         pf2_err.append(est2[1:] - ct_true[1:])
         cov.append(np.mean((ct_true[1:] >= lo[1:]) & (ct_true[1:] <= hi[1:])))
         cov2.append(np.mean((ct_true[1:] >= lo2[1:]) & (ct_true[1:] <= hi2[1:])))
+        lo2_all.append(lo2[1:]); hi2_all.append(hi2[1:]); true2_all.append(ct_true[1:])
 
         # ECTemp: fit on the first 40% of THIS day, run on the rest
         cut = int(n * 0.4)
@@ -200,6 +207,25 @@ def main():
     print(f"  {'physics PF, HR + activity + skin':<32}{np.nanmean(pf2_e):>+8.3f}"
           f"{np.sqrt(np.nanmean(pf2_e**2)):>8.3f}{np.nanmean(np.abs(pf2_e)):>8.3f}"
           f"{np.mean(cov2)*100:>10.0f}%")
+
+    if CALIBRATION.exists():
+        corr = ConformalCorrection.from_dict(
+            json.loads(CALIBRATION.read_text())["pf_hr_skin"])
+        lo2_c = np.concatenate(lo2_all)
+        hi2_c = np.concatenate(hi2_all)
+        true2_c = np.concatenate(true2_all)
+        lo2_adj, hi2_adj = corr.apply(lo2_c, hi2_c)
+        raw_cov = conformal_coverage(lo2_c, hi2_c, true2_c)
+        adj_cov = conformal_coverage(lo2_adj, hi2_adj, true2_c)
+        print(f"\n  PROSPIE-calibrated interval (+/-{corr.delta:.2f} C, fit on real "
+              f"physiology, not this synthetic data):")
+        print(f"    raw stated 95% coverage on this synthetic set: {raw_cov*100:.0f}%")
+        print(f"    after the PROSPIE conformal correction:        {adj_cov*100:.0f}%")
+        print(f"    (still a demonstration, not a validation -- ground truth here "
+              f"is the same model that generated the filter's prior)")
+    else:
+        print(f"\n  no conformal calibration found at {CALIBRATION} -- run "
+              f"scripts/twin_external_validation.py first to fit one from PROSPIE")
 
     P = pd.DataFrame(pred_rows)
     print(f"\n=== 2. Anticipation: 'core > {THRESH} C within {PRED_HORIZON_MIN} min' "

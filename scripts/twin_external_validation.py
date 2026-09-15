@@ -50,11 +50,14 @@ import pandas as pd
 REPO = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
+from src.conformal import coverage as conformal_coverage
+from src.conformal import fit_conformal
 from src.heat_strain_filter import HeatStrainParticleFilter
 from src.thermoreg import Subject
 
 XLSX = REPO / "data" / "prospie" / "prospie.xlsx"
 OUT = REPO / "data" / "twin_external_validation.json"
+CALIBRATION_OUT = REPO / "data" / "conformal_calibration.json"
 FIGSHARE_URL = "https://ndownloader.figshare.com/files/47227096"
 FIGSHARE_MD5 = "cdbdb0795d3c5d2923d199466513c163"
 
@@ -337,6 +340,64 @@ def _group(rows):
     return g
 
 
+# --------------------------------------------------------------- conformal
+def loso_conformal(raw_rows: list[dict], alpha: float = 0.05) -> dict:
+    """Leave-one-subject-out conformal calibration.
+
+    For each subject, fit the conformal correction on every OTHER subject's
+    scored minutes only, then apply it to this subject's own points and
+    measure coverage. This is the same LOSO discipline the ECTemp curve
+    already uses (fit_ectemp_curve): the subject being scored never
+    contributes to its own correction, so the reported coverage is an honest
+    estimate of what a new, unseen worker would get -- not the calibration
+    set's own coverage, which would trivially hit the target.
+
+    Also fits and returns the production correction: the same procedure
+    using ALL subjects as the calibration set, which is what actually ships
+    (a held-out worker in deployment is, by construction, never in the
+    PROSPIE calibration set either way).
+    """
+    by_pid: dict[int, dict] = {}
+    for r in raw_rows:
+        d = by_pid.setdefault(r["pid"], {"lo": [], "hi": [], "y": []})
+        d["lo"].append(r["lo"])
+        d["hi"].append(r["hi"])
+        d["y"].append(r["y"])
+    for d in by_pid.values():
+        for k in ("lo", "hi", "y"):
+            d[k] = np.concatenate(d[k])
+
+    pids = sorted(by_pid)
+    raw_cov, corrected_cov, deltas = [], [], []
+    for held_out in pids:
+        cal_lo = np.concatenate([by_pid[p]["lo"] for p in pids if p != held_out])
+        cal_hi = np.concatenate([by_pid[p]["hi"] for p in pids if p != held_out])
+        cal_y = np.concatenate([by_pid[p]["y"] for p in pids if p != held_out])
+        corr = fit_conformal(cal_lo, cal_hi, cal_y, alpha=alpha)
+        test = by_pid[held_out]
+        raw_cov.append(conformal_coverage(test["lo"], test["hi"], test["y"]))
+        lo_adj, hi_adj = corr.apply(test["lo"], test["hi"])
+        corrected_cov.append(conformal_coverage(lo_adj, hi_adj, test["y"]))
+        deltas.append(corr.delta)
+
+    all_lo = np.concatenate([by_pid[p]["lo"] for p in pids])
+    all_hi = np.concatenate([by_pid[p]["hi"] for p in pids])
+    all_y = np.concatenate([by_pid[p]["y"] for p in pids])
+    production = fit_conformal(all_lo, all_hi, all_y, alpha=alpha)
+
+    return {
+        "n_subjects": len(pids),
+        "alpha": alpha,
+        "target_coverage": 1.0 - alpha,
+        "raw_coverage_mean": float(np.mean(raw_cov)),
+        "corrected_coverage_mean_loso": float(np.mean(corrected_cov)),
+        "corrected_coverage_min_loso": float(np.min(corrected_cov)),
+        "corrected_coverage_max_loso": float(np.max(corrected_cov)),
+        "per_subject_delta_loso": [round(float(d), 4) for d in deltas],
+        "production_correction": production.to_dict(),
+    }
+
+
 # -------------------------------------------------------------------- main
 def main() -> None:
     ap = argparse.ArgumentParser()
@@ -361,6 +422,7 @@ def main() -> None:
         curves[p] = fit_ectemp_curve(hr, ct)
 
     rows = {"ectemp": [], "pf_hr": [], "pf_hr_skin": []}
+    raw_points = {"pf_hr": [], "pf_hr_skin": []}   # per-minute (pid, lo, hi, y) for conformal calibration
     per_trial = []
     for t in trials:
         v = t["valid"]
@@ -377,11 +439,15 @@ def main() -> None:
 
         e1, l1, h1 = run_pf(t, use_skin=False)
         s1 = trial_scores(t["core"], e1, l1, h1, scored)
+        raw_points["pf_hr"].append(dict(pid=t["pid"], lo=l1[scored], hi=h1[scored],
+                                        y=t["core"][scored]))
 
         has_skin = np.isfinite(t["tsk"][scored]).mean() > 0.5
         if has_skin:
             e2, l2, h2 = run_pf(t, use_skin=True)
             s2 = trial_scores(t["core"], e2, l2, h2, scored)
+            raw_points["pf_hr_skin"].append(dict(pid=t["pid"], lo=l2[scored], hi=h2[scored],
+                                                 y=t["core"][scored]))
         else:
             s2 = None
 
@@ -427,6 +493,12 @@ def main() -> None:
                 splits.setdefault(tag, {})[name] = aggregate(sel)["point"]
     report["splits"] = splits
 
+    conformal = {tag: loso_conformal(pts, alpha=0.05)
+                 for tag, pts in raw_points.items() if pts}
+    report["conformal"] = conformal
+    CALIBRATION_OUT.write_text(json.dumps(
+        {tag: c["production_correction"] for tag, c in conformal.items()}, indent=2))
+
     OUT.write_text(json.dumps(report, indent=2))
 
     def line(tag, label):
@@ -448,7 +520,20 @@ def main() -> None:
     line("ectemp", "ECTemp HR-only EKF")
     line("pf_hr", "PF (HR only)")
     line("pf_hr_skin", "PF (HR + skin)")
-    print(f"\nwrote {OUT}")
+
+    print("\n=== conformal calibration (leave-one-subject-out) ===")
+    for tag, label in (("pf_hr", "PF (HR only)"), ("pf_hr_skin", "PF (HR + skin)")):
+        c = conformal.get(tag)
+        if not c:
+            continue
+        pc = c["production_correction"]
+        print(f"  {label:<18} raw cov95 {c['raw_coverage_mean']:.2f}  ->  "
+              f"corrected cov95 {c['corrected_coverage_mean_loso']:.2f} "
+              f"(range {c['corrected_coverage_min_loso']:.2f}-"
+              f"{c['corrected_coverage_max_loso']:.2f} across held-out subjects)  "
+              f"widen +/-{pc['delta']:.2f} C")
+
+    print(f"\nwrote {OUT}\nwrote {CALIBRATION_OUT}")
 
 
 if __name__ == "__main__":
