@@ -42,6 +42,61 @@ Three rules the project holds to:
 
 ---
 
+## Where this fits
+
+Forecast-driven, pre-exposure heat scheduling is not an empty category.
+**Perry Weather** (Dallas; on-site black-globe hardware plus a 72-hour
+forecast; $131M+ raised, a $110M round in September 2026), **Tomorrow.io**
+(Boston/Tel Aviv; satellite-fed, "Weather-Adaptive Scheduling"; $543M+
+raised, unicorn valuation) and **HEAT-SHIELD** (an EU-funded academic
+consortium; ECMWF forecasts driving personalised WBGT/UTCI work-rest
+schedules) all do some version of turning a forecast into a schedule
+before anyone is exposed. Harara does not claim to be the first or only
+system in that category, and any pitch of this project that says
+otherwise should be read as out of date.
+
+What none of the above does is specific to this project's actual case
+study:
+
+- **The GCC does not have one heat law, it has several incompatible
+  ones**, and nobody surveyed builds for that. Qatar mandates WBGT by
+  statute; Abu Dhabi's industry practice references Thermal Work Limit
+  (TWL), a physically different index; Dubai runs a heat-index-style
+  reading; the rest of the GCC enforces a calendar-only midday ban.
+  Harara computes WBGT ([`src/wbgt.py`](src/wbgt.py)), TWL
+  ([`src/twl.py`](src/twl.py), a direct port of Brake & Bates' own
+  reference implementation, not a black-box approximation), and a
+  heat-index variant ([`src/heat_index.py`](src/heat_index.py)) as
+  three independently tested physics/statistical engines, compared
+  against each other on the same real weather (technical report
+  section 5.10).
+- **Every comparable commercial system keeps its formulas closed.**
+  Perry Weather's own materials describe its scheduling math as
+  "closely guarded." Harara's physics, validation numbers, and
+  mistakes are public: [`docs/results_ledger.md`](docs/results_ledger.md)
+  records 39 investigated questions including the ones that came back
+  negative, a headline result (a 14 percent peak-load improvement)
+  that was retracted once the underlying scheduling logic was shown to
+  be dishonest, two self-discovered defects in the weather archive
+  this project itself depends on, and a heat-strain filter whose
+  stated confidence interval was found to be wrong by external
+  validation and then fixed with a published correction. That ledger
+  is the actual moat: it is expensive to fake and unattractive to
+  copy.
+- **No on-site hardware is required.** Perry Weather and comparable
+  platforms pair their forecasts with physical black-globe stations
+  per site. Harara runs on public forecasts alone, at the cost of the
+  hyper-local accuracy that on-site sensors give — a real trade-off,
+  not a free win, and one the satellite surface-heat layer (section
+  5.9) exists to partially narrow.
+- **Thermal Work Limit exists almost nowhere as working software.**
+  The clearest gap found in a survey of this market: TWL is published
+  in academic papers and closed research scripts, not in a deployable
+  product, anywhere. `src/twl.py` is a tested, cited, working
+  implementation.
+
+---
+
 ## Key results
 
 | Question | Finding |
