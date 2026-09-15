@@ -15,6 +15,15 @@ cdsapi>=0.7
 xarray>=2024.1
 netcdf4>=1.6
 
+# satellite surface-heat downscaling (offline build only, not part of the
+# deployed API image; see scripts/fetch_satellite_tiles.py)
+rasterio>=1.4
+rioxarray>=0.19
+pystac-client>=0.9
+planetary-computer>=1.0
+shapely>=2.1
+pyproj>=3.7
+
 # figures & tests
 matplotlib>=3.8
 pyarrow>=14.0
