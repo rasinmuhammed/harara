@@ -89,11 +89,14 @@ study:
   hyper-local accuracy that on-site sensors give — a real trade-off,
   not a free win, and one the satellite surface-heat layer (section
   5.9) exists to partially narrow.
-- **Thermal Work Limit exists almost nowhere as working software.**
-  The clearest gap found in a survey of this market: TWL is published
-  in academic papers and closed research scripts, not in a deployable
-  product, anywhere. `src/twl.py` is a tested, cited, working
-  implementation.
+- **A closed-source TWL product does exist (INNOBAYT's TWL Calculator/
+  TWL-IB platform, hardware plus a paid API); this project's own earlier
+  claim that TWL exists "almost nowhere as working software" was wrong
+  and has been corrected here rather than left standing.** What is still
+  true: nobody found, commercial or academic, publishes an open, tested,
+  primary-source-cited TWL implementation. `src/twl.py` is a direct,
+  tested port of Brake & Bates' own reference code (technical report
+  section 5.10), auditable rather than proprietary.
 
 ---
 
