@@ -475,6 +475,69 @@ hour-by-hour agreement on the 32.1 C line is unchanged (97.1%, previously
 strong day-to-day agreement that was already there. The section 4.1 headline
 now cites these corrected figures directly.
 
+### 5.9 Site-scale surface heat from satellite imagery
+
+Section 5.2 established that a single ~25 km forecast grid cell is a
+reasonable, if mildly conservative, planning unit at the metro scale, but
+that block-scale microclimate, a trench, a rooftop, sun-heated bare steel,
+is not resolved by any public forecast product. This is an initial,
+partial answer to that gap, using free satellite imagery rather than a
+new physics model, and it is advisory only: it never feeds
+`src/wbgt.py`, the scheduler, or `/api/plan`.
+
+**Method.** For a site (`scripts/fetch_satellite_tiles.py`), Landsat
+Collection 2 Level 2 surface temperature (`lwir11`, calibrated to Kelvin
+via the asset's own scale and offset metadata, not a hardcoded constant)
+and Sentinel-2 L2A visible/NIR/SWIR bands are pulled from Microsoft
+Planetary Computer's public STAC API for cloud-masked scenes (Landsat
+`QA_PIXEL` Clear bit; Sentinel-2 SCL, cloud/shadow/snow/nodata excluded)
+over the last three warm seasons, and median-composited per pixel. This
+is a **climatological pattern**, the typical surface-heat texture of a
+place in summer, not a live reading; a single overpass is one moment in
+time.
+
+`src/lst_downscale.py` then downscales Landsat's native 30 m composite to
+Sentinel-2's 10 m grid: NDVI, NDBI and a brightness proxy are aggregated
+from 10 m to an exact 3x3 mean at 30 m, a gradient-boosted regressor
+(LightGBM) is fit at 30 m, predicted back at native 10 m, and a smoothly
+upsampled 30 m residual is added back so the output still matches the real
+coarse measurement on average (a standard regression-kriging-style
+downscaling step). Validation is by spatial block cross-validation (4
+contiguous folds over the site tile), never random-pixel holdout, which
+would leak neighbouring-pixel information. This is an internal-consistency
+check, not a comparison against any ground sensor; no instrumented site
+exists to validate against at 10 m, which is exactly the limitation
+section 12 already names.
+
+**A real run, Doha city centre, 2 km radius, 10 clearest scenes per
+source over 2024 to 2026:** spatial-CV RMSE 2.9 C on 4 folds (rising with
+more scenes as the composite firms up), composite mean 48.2 C with a 5.9 C
+spread across the tile at the time of day these scenes were captured
+(late morning, local time). Vegetated ground (NDVI > 0.3, about 7.5% of
+the tile) reads about 2.5 C cooler than bare or built-up ground (about
+83% of the tile) in the downscaled output, the correct and expected
+direction, and a synthetic test with a known checkerboard vegetation
+pattern (`tests/test_satellite_lst.py`) confirms the model recovers that
+direction reliably before it is ever pointed at real data.
+
+**What this is not.** It is not validated against a ground sensor network,
+it is not live, and the land-cover proxy (NDVI/NDBI/brightness) is
+correlational, not a physical surface energy balance. It answers "where
+does this neighbourhood tend to run hotter or cooler" for siting and
+awareness, for example choosing a shaded laydown area over a bare lot,
+never "is it safe to work here right now," which stays the forecast
+WBGT's job alone.
+
+**Shipped.** `scripts/build_site_heat_map.py` builds one site;
+`scripts/build_site_heat_presets.py` precomputes the app's known location
+presets offline (this is a multi-minute, dozens-of-remote-reads job per
+site, the same reason the replay weeks and the GEFS backfill are
+precomputed rather than run inside a request) and publishes them to
+`api/data/site_heat/`, served by `GET /api/site-heat`. The web map shows
+it as an opt-in overlay, off by default, with its own colour ramp distinct
+from the WBGT ramp used everywhere else, so the two are never visually
+confused.
+
 ## 6. GEFS v12 reforecast integration
 
 A multi-year forecast-reliability study on the Open-Meteo forecast archive is
@@ -966,7 +1029,11 @@ step against capsule temperature.
 ## 12. Limitations
 
 1. Ground truth is a single station (OTHH) in one metro area; spatial
-   generality is untested.
+   generality is untested. Section 5.9 gives a partial, advisory answer at
+   the block scale from satellite imagery, but it is a climatological,
+   uncalibrated land-cover proxy, not a validated physical measurement, and
+   it still does not reach the instrumented-site data section 5.2 says is
+   the real requirement here.
 2. The gridded product under test is the Open-Meteo blend, and it carried a
    second archive defect beyond the November 2024 wind issue: a persistent
    summer humidity drift from 2018 onward, confirmed against both ERA5 and
